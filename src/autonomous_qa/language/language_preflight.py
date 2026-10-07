@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from src.autonomous_qa.language.language_quality import (
     LanguageRegistryEntry,
     ProductionLanguageRegistry,
-    entry_capability_compatible,
+    compatible_registry_entries,
     load_language_registry,
     slot_value_map,
 )
@@ -714,19 +714,16 @@ def _compatible_entries(
             )
         ]
         return _prefer_proposition(candidates, item)
-    slot_values = slot_value_map(item.phrase_bindings)
-    candidates = [
-        entry
-        for entry in registry.active(item.operator, item.semantic_class)
-        if entry.answer_kind == item.answer_kind
-        and item.match_policy in entry.match_policy
-        and entry_capability_compatible(
-            entry,
-            entity_scope=item.phrase_bindings.get("entity_scope"),
-            unit=item.phrase_bindings.get("unit"),
-            slot_values=slot_values,
-        )[0]
-    ]
+    candidates = compatible_registry_entries(
+        registry,
+        operator=item.operator,
+        semantic_class=item.semantic_class,
+        answer_kind=item.answer_kind,
+        match_policy=item.match_policy,
+        entity_scope=item.phrase_bindings.get("entity_scope"),
+        unit=item.phrase_bindings.get("unit"),
+        slot_values=slot_value_map(item.phrase_bindings),
+    )
     return _prefer_proposition(candidates, item)
 
 
@@ -734,22 +731,30 @@ def _resource_identity(
     registry_path: Path | None = None,
     *,
     registry_hash: str | None = None,
+    registry_object_sha256: str | None = None,
 ) -> dict[str, Any]:
-    registry_path = Path(registry_path) if registry_path else REGISTRY_RESOURCE
     template_path = TEMPLATE_RESOURCE
     paraphrase_path = PARAPHRASE_RESOURCE
     renderer_path = ROOT / "src" / "autonomous_qa" / "production" / "production_qa.py"
-    try:
-        registry_file = registry_path.relative_to(ROOT).as_posix()
-    except ValueError:
-        registry_file = registry_path.name
-    if registry_hash is None:
-        registry_hash = json.loads(
-            registry_path.read_text(encoding="utf-8")
-        )["registry_hash"]
+    if registry_path is None and registry_object_sha256 is not None:
+        # Explicit in-memory registry: identify the ACTUAL registry model bytes
+        # instead of borrowing the canonical file SHA.
+        registry_file = "in_memory_registry"
+        registry_file_sha = registry_object_sha256
+    else:
+        registry_path = Path(registry_path) if registry_path else REGISTRY_RESOURCE
+        try:
+            registry_file = registry_path.relative_to(ROOT).as_posix()
+        except ValueError:
+            registry_file = registry_path.name
+        registry_file_sha = sha256_file(registry_path)
+        if registry_hash is None:
+            registry_hash = json.loads(
+                registry_path.read_text(encoding="utf-8")
+            )["registry_hash"]
     return {
         "language_registry_file": registry_file,
-        "language_registry_file_sha256": sha256_file(registry_path),
+        "language_registry_file_sha256": registry_file_sha,
         "language_registry_hash": registry_hash,
         "template_resource_file_sha256": sha256_file(template_path),
         "paraphrase_resource_file_sha256": sha256_file(paraphrase_path),
@@ -773,6 +778,7 @@ def compute_contract_fingerprint(
     implementation_identity: str | None = None,
     registry_path: Path | None = None,
     registry_hash: str | None = None,
+    registry_object_sha256: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
     inputs = {
         "preflight_contract_id": PREFLIGHT_CONTRACT_ID,
@@ -782,7 +788,11 @@ def compute_contract_fingerprint(
             else get_canonical_preflight_implementation_sha256()
         ),
         "mode": mode,
-        "resources": _resource_identity(registry_path, registry_hash=registry_hash),
+        "resources": _resource_identity(
+            registry_path,
+            registry_hash=registry_hash,
+            registry_object_sha256=registry_object_sha256,
+        ),
         "operator_contract_id": OPERATOR_CONTRACT_ID,
         "operator_contracts": {
             key: value.model_dump(mode="json")
@@ -1071,9 +1081,9 @@ def _source_reference_issues(
     paraphrase_ids = {row["paraphrase_id"] for row in paraphrase["paraphrases"]}
     issues = []
     for entry in registry.entries:
-        if entry.source_kind == "CANDIDATE":
-            # Candidate entries are defined by the candidate capability
-            # resource, not by the canonical template/paraphrase libraries.
+        if entry.source_kind in ("CANDIDATE", "CERTIFIED_CAPABILITY"):
+            # Capability entries are defined by the capability resource, not by
+            # the canonical template/paraphrase libraries.
             continue
         exists = (
             entry.source_id in template_ids
@@ -1291,6 +1301,7 @@ def run_preflight(
     registry: ProductionLanguageRegistry | None = None,
     registry_path: Path | None = None,
 ) -> dict[str, Any]:
+    explicit_registry = registry is not None
     if registry is None:
         registry = load_language_registry(registry_path or REGISTRY_RESOURCE)
     if accepted_types is not None:
@@ -1301,11 +1312,19 @@ def run_preflight(
         items = get_dataset_accepted_types(dataset)
     else:
         items = []
+    # An explicit in-memory registry with no path must still yield a fingerprint
+    # that identifies the ACTUAL registry, never the canonical file SHA.
+    registry_object_sha256 = (
+        canonical_hash(registry.model_dump(mode="json"))
+        if explicit_registry and registry_path is None
+        else None
+    )
     fingerprint, fingerprint_inputs = compute_contract_fingerprint(
         mode=mode,
         accepted_types=items,
         registry_path=registry_path,
         registry_hash=registry.registry_hash,
+        registry_object_sha256=registry_object_sha256,
     )
     contracts = operator_contracts()
     strategies = fixture_strategies()

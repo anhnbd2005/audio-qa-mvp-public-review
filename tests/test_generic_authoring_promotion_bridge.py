@@ -149,7 +149,9 @@ def _toy_comparators() -> dict:
 
 def _toy_language_registry() -> dict:
     registry = {
-        "language": "toy",
+        # Language must match the dataset-neutral capability resource language
+        # (Vietnamese) for the candidate-registry language guard.
+        "language": "vi",
         "version": "toy_v1",
         "schema_version": 1,
         "template_library_version": "toy_v1",

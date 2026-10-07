@@ -51,7 +51,8 @@ from src.autonomous_qa.compiler.semantic_task import (
 from src.autonomous_qa.language.candidate_registry import (
     CANDIDATE_CAPABILITIES_RESOURCE,
     build_candidate_language_registry,
-    load_candidate_capabilities,
+    load_candidate_capability_resource,
+    validate_candidate_capability_resource,
     write_registry_deterministically,
 )
 from src.autonomous_qa.language.language_quality import (
@@ -826,7 +827,11 @@ def _resolve_declarative_field_specs(
     the sidecar is located by a generic path convention.
     """
     sidecar_path = resource_root / "field_specs" / f"{dataset_id}.json"
-    migration_specs = load_migration_sidecar(sidecar_path) if sidecar_path.exists() else None
+    migration_specs = (
+        load_migration_sidecar(sidecar_path, expected_dataset_id=dataset_id)
+        if sidecar_path.exists()
+        else None
+    )
     bundle = compile_semantic_field_specs(
         profile,
         required_fields=required_fields,
@@ -1144,8 +1149,14 @@ def prepare_promotion(
 
     # --- Phase 4.2: candidate language registry (SCRATCH ONLY) --------------
     canonical_registry = load_language_registry_from_root(resource_root)
+    capability_resource = load_candidate_capability_resource(candidate_capabilities_path)
+    capability_entries = validate_candidate_capability_resource(
+        capability_resource, expected_language=canonical_registry.language
+    )
     candidate_registry = build_candidate_language_registry(
-        canonical_registry, load_candidate_capabilities(candidate_capabilities_path)
+        canonical_registry,
+        capability_entries,
+        capability_language=capability_resource["language"],
     )
     cap_scratch_dir = (language_capability_root or DEFAULT_LANGUAGE_CAPABILITY_SCRATCH) / dataset_id
     candidate_registry_path = (

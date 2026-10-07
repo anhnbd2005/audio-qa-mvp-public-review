@@ -26,9 +26,8 @@ from src.autonomous_qa.language.language_quality import (
     LanguageRegistryEntry,
     ProductionGenerationConfig,
     ProductionLanguageRegistry,
-    approved_patterns_for_contract,
     check_runtime_coverage,
-    entry_capability_compatible,
+    compatible_registry_entries,
     load_language_registry,
     slot_value_map,
 )
@@ -321,7 +320,6 @@ def qa_id_for(sem_id: str, language_entry_id: str, registry_hash: str) -> str:
 def compatible_language_entries(
     registry: Any, spec: SemanticFieldSpec, contract: TypeContract
 ) -> list[LanguageRegistryEntry]:
-    entries = approved_patterns_for_contract(registry, spec, contract)
     operator_contract = operator_contracts()[contract.operator]
     slot_values = slot_value_map(
         {
@@ -331,6 +329,18 @@ def compatible_language_entries(
             "value_phrase": spec.value_phrase,
             "unit": spec.unit,
         }
+    )
+    # Single shared selector (Phase 4.2P) so generation, preflight and runtime
+    # coverage cannot diverge.
+    entries = compatible_registry_entries(
+        registry,
+        operator=contract.operator,
+        semantic_class=spec.semantic_class,
+        answer_kind=contract.answer_kind,
+        match_policy=spec.value_policy.match_policy,
+        entity_scope=spec.entity_scope,
+        unit=spec.unit,
+        slot_values=slot_values,
     )
     filtered = [
         entry
@@ -342,12 +352,6 @@ def compatible_language_entries(
             "target_value" not in operator_contract.context_roles
             or "[TARGET_VALUE]" in entry.pattern
         )
-        and entry_capability_compatible(
-            entry,
-            entity_scope=spec.entity_scope,
-            unit=spec.unit,
-            slot_values=slot_values,
-        )[0]
     ]
     if not filtered:
         raise ValueError(

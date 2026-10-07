@@ -136,8 +136,16 @@ def field_spec_from_profile(
     )
 
 
-def load_migration_sidecar(path: Path) -> dict[str, SemanticFieldSpec]:
+def load_migration_sidecar(
+    path: Path, *, expected_dataset_id: str | None = None
+) -> dict[str, SemanticFieldSpec]:
     data = json.loads(path.read_text(encoding="utf-8"))
+    if expected_dataset_id is not None and isinstance(data, Mapping):
+        declared = data.get("dataset_id")
+        if declared is not None and declared != expected_dataset_id:
+            raise ValueError(
+                f"FIELD_SPEC_DATASET_MISMATCH:{declared}!={expected_dataset_id}"
+            )
     rows = data.get("field_specs", data)
     specs = [SemanticFieldSpec.model_validate(item) for item in rows]
     return {spec.field_name: spec for spec in specs}

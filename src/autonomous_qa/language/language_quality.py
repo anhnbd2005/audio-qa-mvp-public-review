@@ -126,7 +126,9 @@ class OperatorLanguageQualityOutput(BaseModel):
 class LanguageRegistryEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
     language_entry_id: str
-    source_kind: Literal["CANONICAL", "PARAPHRASE", "CANDIDATE"]
+    source_kind: Literal[
+        "CANONICAL", "PARAPHRASE", "CANDIDATE", "CERTIFIED_CAPABILITY"
+    ]
     source_id: str
     canonical_blueprint_id: str
     operator: OperatorId
@@ -156,6 +158,11 @@ class LanguageRegistryEntry(BaseModel):
     # structurally, never silently wildcard".
     entity_scopes: list[str] | None = None
     entity_reference_owner: Literal["slot", "literal", "none"] | None = None
+    # Phase 4.2P canonical provenance: a candidate capability may be promoted
+    # only with explicit certification evidence. These fields are identity-
+    # bearing only when set, preserving every historical registry hash.
+    certification_status: Literal["CERTIFIED"] | None = None
+    certification_hash: str | None = None
 
 
 class ProductionLanguageRegistry(BaseModel):
@@ -190,7 +197,12 @@ class ProductionLanguageRegistry(BaseModel):
         # Phase 4.2 capability fields are identity-bearing ONLY when declared.
         # Popping them when None keeps every historical registry hash stable.
         for entry in payload.get("entries", []):
-            for key in ("entity_scopes", "entity_reference_owner"):
+            for key in (
+                "entity_scopes",
+                "entity_reference_owner",
+                "certification_status",
+                "certification_hash",
+            ):
                 if entry.get(key) is None:
                     entry.pop(key, None)
         return canonical_hash(payload)
@@ -745,7 +757,27 @@ def check_runtime_coverage(
     rows = []
     for contract in contracts:
         field_spec = specs[contract.semantic_field]
-        matches = approved_patterns_for_contract(registry, field_spec, contract)
+        # Runtime coverage MUST use the same entity-scope/ownership selector as
+        # staged preflight and production generation, or it would overstate
+        # readiness with entries generation would reject.
+        matches = compatible_registry_entries(
+            registry,
+            operator=contract.operator,
+            semantic_class=field_spec.semantic_class,
+            answer_kind=contract.answer_kind,
+            match_policy=field_spec.value_policy.match_policy,
+            entity_scope=field_spec.entity_scope,
+            unit=field_spec.unit,
+            slot_values=slot_value_map(
+                {
+                    "entity_phrase": field_spec.entity_phrase,
+                    "attribute_phrase": field_spec.attribute_phrase,
+                    "content_phrase": field_spec.content_phrase,
+                    "value_phrase": field_spec.value_phrase,
+                    "unit": field_spec.unit,
+                }
+            ),
+        )
         rows.append(
             {
                 "type_id": contract.type_id,
@@ -953,6 +985,38 @@ def entry_capability_compatible(
             return False, "SEMANTIC_OWNERSHIP_CONFLICT"
 
     return True, None
+
+
+def compatible_registry_entries(
+    registry: ProductionLanguageRegistry,
+    *,
+    operator: str,
+    semantic_class: str,
+    answer_kind: str,
+    match_policy: str,
+    entity_scope: str | None,
+    unit: str | None,
+    slot_values: dict[str, str],
+) -> list[LanguageRegistryEntry]:
+    """THE single entity-scope/ownership compatibility selector.
+
+    Used by staged language preflight, production generation, and runtime
+    coverage so readiness can never claim a capability that generation would
+    reject. Returns enabled entries whose operator/semantic_class/answer_kind/
+    match_policy and entity composition all match.
+    """
+    return [
+        entry
+        for entry in registry.active(operator, semantic_class)
+        if entry.answer_kind == answer_kind
+        and match_policy in entry.match_policy
+        and entry_capability_compatible(
+            entry,
+            entity_scope=entity_scope,
+            unit=unit,
+            slot_values=slot_values,
+        )[0]
+    ]
 
 
 
