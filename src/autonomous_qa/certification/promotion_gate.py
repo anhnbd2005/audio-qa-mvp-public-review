@@ -140,10 +140,8 @@ def build_candidate_contract(
         active_semantic_types=active_types,
         production_planner_policy={
             "allowed_splits": list(spec.allowed_splits),
-            "plan_location": (
-                "data/materialized/vimd/current"
-                if dataset_id == "vimd"
-                else "data/materialized/vietmdd"
+            "plan_location": spec.production_constraints.get(
+                "plan_location", f"data/materialized/{dataset_id}/current"
             ),
         },
         promotion_evidence=evidence,

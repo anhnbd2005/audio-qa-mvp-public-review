@@ -21,7 +21,6 @@ from src.autonomous_qa.certification.authoring_promotion import (
     apply_promotion,
     prepare_promotion,
 )
-from src.autonomous_qa.language.language_preflight import run_preflight
 from src.common.config import ROOT
 
 
@@ -45,7 +44,6 @@ def onboard_dataset(
     elif authoring_run_id:
         run_dir = ROOT / "outputs" / "runs" / dataset_id / authoring_run_id
     else:
-        # Find latest authoring run directory for dataset
         runs_parent = ROOT / "outputs" / "runs" / dataset_id
         if not runs_parent.exists():
             raise FileNotFoundError(f"No authoring runs found under {runs_parent}")
@@ -71,6 +69,7 @@ def onboard_dataset(
         "promotable_total": bundle.promotable_total,
         "promotable_types": list(bundle.promotable_types),
         "semantic_diff": bundle.semantic_diff,
+        "staged_language_preflight": bundle.staged_language_preflight,
         "canonical_mutations": 0,
         "applied": False,
     }

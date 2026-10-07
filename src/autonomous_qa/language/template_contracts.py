@@ -196,115 +196,124 @@ def _canonical_operator(entry: dict[str, Any]) -> str:
     return "PAIRWISE_SELECTION" if kind == "SELECTION" else kind
 
 
-def build_type_contracts(registry: dict[str, Any]) -> list[TypeContract]:
+def build_type_contracts_from_legacy_registry(registry: dict[str, Any]) -> list[TypeContract]:
+    """Migration compatibility path for legacy production_registry.json."""
     contracts: list[TypeContract] = []
-    entries = registry.get("entries")
-    if entries is not None:
-        for entry in entries:
-            status = entry["status"]
-            if status not in {"SUPPORTED", "REVIEW_REQUIRED"}:
-                continue
-            field = entry["gold_source_fields"][0]
-            scope, description, phrase = FIELD_SEMANTICS.get(
-                field, ("unknown", "dataset semantic attribute", "thuộc tính ngữ nghĩa")
+    entries = registry.get("entries", [])
+    for entry in entries:
+        status = entry["status"]
+        if status not in {"SUPPORTED", "REVIEW_REQUIRED"}:
+            continue
+        field = entry["gold_source_fields"][0]
+        scope, description, phrase = FIELD_SEMANTICS.get(
+            field, ("unknown", "dataset semantic attribute", "thuộc tính ngữ nghĩa")
+        )
+        operator = _canonical_operator(entry)
+        answer_mode = {
+            "DIRECT": "FIELD_VALUE",
+            "EQUALITY": "BOOLEAN",
+            "PAIRWISE_SELECTION": "A_B_SELECTION",
+            "TARGET_MATCH": "BOOLEAN",
+            "COMPOSITE": "STRUCTURED",
+        }[operator]
+        deferred = status == "REVIEW_REQUIRED"
+        contracts.append(
+            TypeContract(
+                type_id=entry["internal_type_id"],
+                operator=operator,
+                semantic_field=field,
+                semantic_description=description,
+                semantic_phrase_vi=phrase,
+                entity_scope=scope,
+                audio_input_count=entry["audio_input_count"],
+                condition_fields=list(entry.get("visible_context_fields", [])),
+                gold_source_fields=list(entry["gold_source_fields"]),
+                answer_kind=operator_contracts()[operator].answer_kind,
+                answer_mode=answer_mode,
+                template_status="DEFERRED_DATA_CAPACITY" if deferred else "ELIGIBLE",
+                template_policy={
+                    "templates_min": MIN_TEMPLATES_PER_TYPE,
+                    "templates_max": MAX_TEMPLATES_PER_TYPE,
+                    "visible_target": operator in {"PAIRWISE_SELECTION", "TARGET_MATCH"},
+                },
+                instantiation_policy={
+                    "split": "train",
+                    "normalize_text": field == "text",
+                    "avoid_same_speaker": operator == "EQUALITY"
+                    and field in {"region", "province_name"},
+                    "text_negative_length_bucket": field == "text"
+                    and operator in {"PAIRWISE_SELECTION", "TARGET_MATCH"},
+                },
+                source_status=status,
+                source_status_reason=entry.get("status_reason"),
             )
-            operator = _canonical_operator(entry)
-            answer_mode = {
-                "DIRECT": "FIELD_VALUE",
-                "EQUALITY": "BOOLEAN",
-                "PAIRWISE_SELECTION": "A_B_SELECTION",
-                "TARGET_MATCH": "BOOLEAN",
-                "COMPOSITE": "STRUCTURED",
-            }[operator]
-            deferred = status == "REVIEW_REQUIRED"
-            contracts.append(
-                TypeContract(
-                    type_id=entry["internal_type_id"],
-                    operator=operator,
-                    semantic_field=field,
-                    semantic_description=description,
-                    semantic_phrase_vi=phrase,
-                    entity_scope=scope,
-                    audio_input_count=entry["audio_input_count"],
-                    condition_fields=list(entry.get("visible_context_fields", [])),
-                    gold_source_fields=list(entry["gold_source_fields"]),
-                    answer_kind=operator_contracts()[operator].answer_kind,
-                    answer_mode=answer_mode,
-                    template_status="DEFERRED_DATA_CAPACITY" if deferred else "ELIGIBLE",
-                    template_policy={
-                        "templates_min": MIN_TEMPLATES_PER_TYPE,
-                        "templates_max": MAX_TEMPLATES_PER_TYPE,
-                        "visible_target": operator
-                        in {"PAIRWISE_SELECTION", "TARGET_MATCH"},
-                    },
-                    instantiation_policy={
-                        "split": "train",
-                        "normalize_text": field == "text",
-                        "avoid_same_speaker": operator == "EQUALITY"
-                        and field in {"region", "province_name"},
-                        "text_negative_length_bucket": field == "text"
-                        and operator in {"PAIRWISE_SELECTION", "TARGET_MATCH"},
-                    },
-                    source_status=status,
-                    source_status_reason=entry.get("status_reason"),
-                )
-            )
-    elif "tasks" in registry:
-        for task in registry["tasks"]:
-            type_id = task["type_id"]
-            op_str = task.get("operator", "DIRECT")
-            if "presence" in type_id:
-                operator = "TARGET_MATCH"
-                answer_mode = "BOOLEAN"
-            elif "pairwise" in type_id:
-                operator = "EQUALITY"
-                answer_mode = "BOOLEAN"
-            elif op_str == "EQUALITY":
-                operator = "EQUALITY"
-                answer_mode = "BOOLEAN"
-            else:
-                operator = "DIRECT"
-                answer_mode = "FIELD_VALUE"
-
-            source_field = task.get("source_role_mapping", {}).get("source_field")
-            if not source_field:
-                if "cs_term" in type_id:
-                    source_field = "cs_terms_list"
-                elif "topic" in type_id:
-                    source_field = "topic"
-                else:
-                    source_field = "segment_text"
-
-            audio_arity = task.get("audio_arity", 2 if "pairwise" in type_id else 1)
-            condition_fields = ["target_value"] if operator == "TARGET_MATCH" else []
-
-            contracts.append(
-                TypeContract(
-                    type_id=type_id,
-                    operator=operator,
-                    semantic_field=source_field,
-                    semantic_description=task.get("proposition_description", ""),
-                    semantic_phrase_vi="",
-                    entity_scope="utterance",
-                    audio_input_count=audio_arity,
-                    condition_fields=condition_fields,
-                    gold_source_fields=[source_field],
-                    answer_kind=operator_contracts()[operator].answer_kind,
-                    answer_mode=answer_mode,
-                    template_status="ELIGIBLE",
-                    template_policy={
-                        "templates_min": MIN_TEMPLATES_PER_TYPE,
-                        "templates_max": MAX_TEMPLATES_PER_TYPE,
-                        "visible_target": operator in {"PAIRWISE_SELECTION", "TARGET_MATCH"},
-                    },
-                    instantiation_policy={
-                        "split": "train",
-                        "normalize_text": source_field in ("text", "segment_text"),
-                    },
-                    source_status="SUPPORTED",
-                )
-            )
+        )
     return contracts
+
+
+def build_type_contracts_from_semantic_catalog(
+    catalog: Any,
+) -> list[TypeContract]:
+    """Clean generic canonical/staged path from SemanticCatalog with zero type-id heuristics."""
+    tasks = catalog.get("tasks", []) if isinstance(catalog, dict) else catalog.tasks
+    contracts: list[TypeContract] = []
+
+    for task_raw in tasks:
+        task = task_raw.model_dump(mode="json") if hasattr(task_raw, "model_dump") else task_raw
+        operator = task.get("operator", "DIRECT")
+        if operator in {"TARGET_MATCH", "EQUALITY"}:
+            answer_mode = "BOOLEAN"
+        elif operator == "PAIRWISE_SELECTION":
+            answer_mode = "A_B_SELECTION"
+        elif operator == "COMPOSITE":
+            answer_mode = "STRUCTURED"
+        else:
+            answer_mode = "FIELD_VALUE"
+
+        source_role = task.get("source_role_mapping", {})
+        outputs = task.get("outputs", [])
+        source_field = source_role.get("source_field") or (
+            outputs[0]["dependencies"][0] if outputs and outputs[0].get("dependencies") else "segment_text"
+        )
+        audio_arity = task.get("audio_arity", 1)
+        condition_fields = ["target_value"] if operator in {"TARGET_MATCH", "PAIRWISE_SELECTION"} else []
+        type_id = task["type_id"]
+        answer_kind = outputs[0]["kind"] if outputs else operator_contracts()[operator].answer_kind
+
+        contracts.append(
+            TypeContract(
+                type_id=type_id,
+                operator=operator,
+                semantic_field=source_field,
+                semantic_description=task.get("proposition_description", ""),
+                semantic_phrase_vi="",
+                entity_scope="utterance",
+                audio_input_count=audio_arity,
+                condition_fields=condition_fields,
+                gold_source_fields=[source_field],
+                answer_kind=answer_kind,
+                answer_mode=answer_mode,
+                template_status="ELIGIBLE",
+                template_policy={
+                    "templates_min": MIN_TEMPLATES_PER_TYPE,
+                    "templates_max": MAX_TEMPLATES_PER_TYPE,
+                    "visible_target": operator in {"PAIRWISE_SELECTION", "TARGET_MATCH"},
+                },
+                instantiation_policy={
+                    "split": "train",
+                    "normalize_text": source_field in ("text", "segment_text"),
+                },
+                source_status="SUPPORTED",
+            )
+        )
+    return contracts
+
+
+def build_type_contracts(registry_or_catalog: dict[str, Any]) -> list[TypeContract]:
+    """Dispatcher for TypeContract compilation: SemanticCatalog vs Legacy Registry."""
+    if "tasks" in registry_or_catalog:
+        return build_type_contracts_from_semantic_catalog(registry_or_catalog)
+    return build_type_contracts_from_legacy_registry(registry_or_catalog)
 
 
 def schema_json() -> str:

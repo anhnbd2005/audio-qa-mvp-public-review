@@ -129,6 +129,16 @@ def vimedcss_field_specs() -> dict[str, SemanticFieldSpec]:
             value_policy={"normalization": "identity", "match_policy": "exact"},
             source="canonical_spec",
         ),
+        SemanticFieldSpec(
+            field_name="cs_terms_count",
+            semantic_class="numeric_attribute",
+            entity_scope="utterance",
+            entity_phrase="đoạn âm thanh",
+            attribute_phrase="số từ chuyển ngữ",
+            value_phrase="số từ",
+            value_policy={"normalization": "identity", "match_policy": "exact"},
+            source="canonical_spec",
+        ),
     ]
     return {item.field_name: item for item in specs}
 
