@@ -28,7 +28,9 @@ from src.autonomous_qa.language.language_quality import (
     ProductionLanguageRegistry,
     approved_patterns_for_contract,
     check_runtime_coverage,
+    entry_capability_compatible,
     load_language_registry,
+    slot_value_map,
 )
 from src.autonomous_qa.language.template_engine import (
     sha256_file,
@@ -321,6 +323,15 @@ def compatible_language_entries(
 ) -> list[LanguageRegistryEntry]:
     entries = approved_patterns_for_contract(registry, spec, contract)
     operator_contract = operator_contracts()[contract.operator]
+    slot_values = slot_value_map(
+        {
+            "entity_phrase": spec.entity_phrase,
+            "attribute_phrase": spec.attribute_phrase,
+            "content_phrase": spec.content_phrase,
+            "value_phrase": spec.value_phrase,
+            "unit": spec.unit,
+        }
+    )
     filtered = [
         entry
         for entry in entries
@@ -331,6 +342,12 @@ def compatible_language_entries(
             "target_value" not in operator_contract.context_roles
             or "[TARGET_VALUE]" in entry.pattern
         )
+        and entry_capability_compatible(
+            entry,
+            entity_scope=spec.entity_scope,
+            unit=spec.unit,
+            slot_values=slot_values,
+        )[0]
     ]
     if not filtered:
         raise ValueError(

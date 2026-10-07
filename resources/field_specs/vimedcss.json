@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "dataset_id": "vimedcss",
+  "description": "Declarative migration sidecar supplying rendering semantics for historical ViMedCSS fields whose DatasetProfile predates semantic_class/verbalization. Data only; no dataset-ID Python branch resolves it.",
+  "field_specs": [
+    {
+      "field_name": "topic",
+      "semantic_class": "categorical_attribute",
+      "entity_scope": "utterance",
+      "entity_phrase": "đoạn âm thanh",
+      "attribute_phrase": "chủ đề y khoa",
+      "value_phrase": "chủ đề",
+      "value_policy": {"normalization": "identity", "match_policy": "exact"},
+      "source": "migration_sidecar"
+    },
+    {
+      "field_name": "cs_terms_count",
+      "semantic_class": "numeric_attribute",
+      "entity_scope": "utterance",
+      "entity_phrase": "đoạn âm thanh",
+      "attribute_phrase": "số từ chuyển ngữ",
+      "value_phrase": "số từ",
+      "unit": null,
+      "value_policy": {"normalization": "identity", "match_policy": "exact"},
+      "source": "migration_sidecar"
+    },
+    {
+      "field_name": "cs_terms_list",
+      "semantic_class": "categorical_attribute",
+      "entity_scope": "utterance",
+      "entity_phrase": "đoạn âm thanh",
+      "attribute_phrase": "thuật ngữ y khoa",
+      "value_phrase": "thuật ngữ",
+      "value_policy": {"normalization": "identity", "match_policy": "exact"},
+      "source": "migration_sidecar"
+    },
+    {
+      "field_name": "segment_text",
+      "semantic_class": "text_content",
+      "entity_scope": "utterance",
+      "entity_phrase": "đoạn âm thanh",
+      "content_phrase": "nội dung được nói",
+      "value_phrase": "nội dung",
+      "value_policy": {"normalization": "normalized_text_exact", "match_policy": "exact"},
+      "rendering": {"target_quote_style": "vietnamese_quotes"},
+      "source": "migration_sidecar"
+    }
+  ]
+}

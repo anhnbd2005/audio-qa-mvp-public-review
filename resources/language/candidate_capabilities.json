@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "capability_set_id": "generic_utterance_v1",
+  "language": "vi",
+  "entries": [
+    {
+      "capability_id": "cap_vi1_dir_cat_utt_01",
+      "operator": "DIRECT",
+      "semantic_class": "categorical_attribute",
+      "answer_kind": "field_value",
+      "pattern": "[ATTRIBUTE_PHRASE] của đoạn âm thanh là gì?",
+      "required_slots": ["[ATTRIBUTE_PHRASE]"],
+      "optional_slots": [],
+      "unit_policy": "any",
+      "match_policy": ["exact"],
+      "entity_scopes": ["utterance"],
+      "entity_reference_owner": "literal"
+    },
+    {
+      "capability_id": "cap_vi1_dir_cat_utt_02",
+      "operator": "DIRECT",
+      "semantic_class": "categorical_attribute",
+      "answer_kind": "field_value",
+      "pattern": "Hãy xác định [ATTRIBUTE_PHRASE] của đoạn âm thanh.",
+      "required_slots": ["[ATTRIBUTE_PHRASE]"],
+      "optional_slots": [],
+      "unit_policy": "any",
+      "match_policy": ["exact"],
+      "entity_scopes": ["utterance"],
+      "entity_reference_owner": "literal"
+    },
+    {
+      "capability_id": "cap_vi1_dir_cat_utt_03",
+      "operator": "DIRECT",
+      "semantic_class": "categorical_attribute",
+      "answer_kind": "field_value",
+      "pattern": "Dựa vào đoạn âm thanh, hãy xác định [ATTRIBUTE_PHRASE].",
+      "required_slots": ["[ATTRIBUTE_PHRASE]"],
+      "optional_slots": [],
+      "unit_policy": "any",
+      "match_policy": ["exact"],
+      "entity_scopes": ["utterance"],
+      "entity_reference_owner": "literal"
+    },
+    {
+      "capability_id": "cap_vi1_dir_num_utt_01",
+      "operator": "DIRECT",
+      "semantic_class": "numeric_attribute",
+      "answer_kind": "field_value",
+      "pattern": "[ATTRIBUTE_PHRASE] trong đoạn âm thanh là bao nhiêu?",
+      "required_slots": ["[ATTRIBUTE_PHRASE]"],
+      "optional_slots": [],
+      "unit_policy": "forbidden",
+      "match_policy": ["exact"],
+      "entity_scopes": ["utterance"],
+      "entity_reference_owner": "literal"
+    },
+    {
+      "capability_id": "cap_vi1_dir_num_utt_02",
+      "operator": "DIRECT",
+      "semantic_class": "numeric_attribute",
+      "answer_kind": "field_value",
+      "pattern": "Hãy xác định [ATTRIBUTE_PHRASE] trong đoạn âm thanh.",
+      "required_slots": ["[ATTRIBUTE_PHRASE]"],
+      "optional_slots": [],
+      "unit_policy": "forbidden",
+      "match_policy": ["exact"],
+      "entity_scopes": ["utterance"],
+      "entity_reference_owner": "literal"
+    },
+    {
+      "capability_id": "cap_vi1_dir_num_utt_unit_01",
+      "operator": "DIRECT",
+      "semantic_class": "numeric_attribute",
+      "answer_kind": "field_value",
+      "pattern": "[ATTRIBUTE_PHRASE] trong đoạn âm thanh là bao nhiêu [UNIT]?",
+      "required_slots": ["[ATTRIBUTE_PHRASE]", "[UNIT]"],
+      "optional_slots": [],
+      "unit_policy": "required",
+      "match_policy": ["exact"],
+      "entity_scopes": ["utterance"],
+      "entity_reference_owner": "literal"
+    },
+    {
+      "capability_id": "cap_vi1_eq_cat_utt_01",
+      "operator": "EQUALITY",
+      "semantic_class": "categorical_attribute",
+      "answer_kind": "boolean",
+      "pattern": "Hai đoạn âm thanh này có [ATTRIBUTE_PHRASE] giống nhau không?",
+      "required_slots": ["[ATTRIBUTE_PHRASE]"],
+      "optional_slots": [],
+      "unit_policy": "any",
+      "match_policy": ["exact"],
+      "entity_scopes": ["utterance"],
+      "entity_reference_owner": "literal"
+    }
+  ]
+}

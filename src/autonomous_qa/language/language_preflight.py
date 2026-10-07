@@ -20,7 +20,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from src.autonomous_qa.language.language_quality import (
     LanguageRegistryEntry,
     ProductionLanguageRegistry,
+    entry_capability_compatible,
     load_language_registry,
+    slot_value_map,
 )
 from src.autonomous_qa.language.template_engine import vimd_field_specs
 from src.autonomous_qa.production.production_qa import (
@@ -712,26 +714,43 @@ def _compatible_entries(
             )
         ]
         return _prefer_proposition(candidates, item)
+    slot_values = slot_value_map(item.phrase_bindings)
     candidates = [
         entry
         for entry in registry.active(item.operator, item.semantic_class)
         if entry.answer_kind == item.answer_kind
         and item.match_policy in entry.match_policy
+        and entry_capability_compatible(
+            entry,
+            entity_scope=item.phrase_bindings.get("entity_scope"),
+            unit=item.phrase_bindings.get("unit"),
+            slot_values=slot_values,
+        )[0]
     ]
     return _prefer_proposition(candidates, item)
 
 
-def _resource_identity() -> dict[str, Any]:
-    registry_path = REGISTRY_RESOURCE
+def _resource_identity(
+    registry_path: Path | None = None,
+    *,
+    registry_hash: str | None = None,
+) -> dict[str, Any]:
+    registry_path = Path(registry_path) if registry_path else REGISTRY_RESOURCE
     template_path = TEMPLATE_RESOURCE
     paraphrase_path = PARAPHRASE_RESOURCE
     renderer_path = ROOT / "src" / "autonomous_qa" / "production" / "production_qa.py"
+    try:
+        registry_file = registry_path.relative_to(ROOT).as_posix()
+    except ValueError:
+        registry_file = registry_path.name
+    if registry_hash is None:
+        registry_hash = json.loads(
+            registry_path.read_text(encoding="utf-8")
+        )["registry_hash"]
     return {
-        "language_registry_file": registry_path.relative_to(ROOT).as_posix(),
+        "language_registry_file": registry_file,
         "language_registry_file_sha256": sha256_file(registry_path),
-        "language_registry_hash": json.loads(registry_path.read_text(encoding="utf-8"))[
-            "registry_hash"
-        ],
+        "language_registry_hash": registry_hash,
         "template_resource_file_sha256": sha256_file(template_path),
         "paraphrase_resource_file_sha256": sha256_file(paraphrase_path),
         "renderer_contract_id": RENDERER_CONTRACT_ID,
@@ -752,6 +771,8 @@ def compute_contract_fingerprint(
     mode: str,
     accepted_types: list[AcceptedLanguageType],
     implementation_identity: str | None = None,
+    registry_path: Path | None = None,
+    registry_hash: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
     inputs = {
         "preflight_contract_id": PREFLIGHT_CONTRACT_ID,
@@ -761,7 +782,7 @@ def compute_contract_fingerprint(
             else get_canonical_preflight_implementation_sha256()
         ),
         "mode": mode,
-        "resources": _resource_identity(),
+        "resources": _resource_identity(registry_path, registry_hash=registry_hash),
         "operator_contract_id": OPERATOR_CONTRACT_ID,
         "operator_contracts": {
             key: value.model_dump(mode="json")
@@ -796,6 +817,13 @@ def _registry_types(registry: ProductionLanguageRegistry) -> list[AcceptedLangua
         unit = "đơn vị" if entry.unit_policy == "required" else None
         op = operator_contracts()[entry.operator]
         is_composite = entry.operator == "COMPOSITE"
+        bindings = _generic_phrase_bindings(entry.semantic_class, unit=unit)
+        # Registry mode must exercise an entry against its OWN declared scope.
+        if entry.entity_scopes:
+            scope = entry.entity_scopes[0]
+            bindings["entity_scope"] = scope
+            if scope == "utterance":
+                bindings["entity_phrase"] = "đoạn âm thanh"
         result.append(
             AcceptedLanguageType(
                 dataset_type_id=f"registry::{entry.language_entry_id}",
@@ -809,9 +837,7 @@ def _registry_types(registry: ProductionLanguageRegistry) -> list[AcceptedLangua
                     if is_composite
                     else op.logical_context_inputs
                 ),
-                phrase_bindings=_generic_phrase_bindings(
-                    entry.semantic_class, unit=unit
-                ),
+                phrase_bindings=bindings,
                 output_signature=[dict(c) for c in entry.output_signature],
                 context_roles=list(entry.context_roles),
             )
@@ -1045,6 +1071,10 @@ def _source_reference_issues(
     paraphrase_ids = {row["paraphrase_id"] for row in paraphrase["paraphrases"]}
     issues = []
     for entry in registry.entries:
+        if entry.source_kind == "CANDIDATE":
+            # Candidate entries are defined by the candidate capability
+            # resource, not by the canonical template/paraphrase libraries.
+            continue
         exists = (
             entry.source_id in template_ids
             if entry.source_kind == "CANONICAL"
@@ -1258,8 +1288,11 @@ def run_preflight(
     accepted_types: list[AcceptedLanguageType] | None = None,
     dataset: str | None = None,
     write_outputs: bool = True,
+    registry: ProductionLanguageRegistry | None = None,
+    registry_path: Path | None = None,
 ) -> dict[str, Any]:
-    registry = load_language_registry(REGISTRY_RESOURCE)
+    if registry is None:
+        registry = load_language_registry(registry_path or REGISTRY_RESOURCE)
     if accepted_types is not None:
         items = sorted(accepted_types, key=lambda row: row.dataset_type_id)
     elif mode == "registry":
@@ -1271,6 +1304,8 @@ def run_preflight(
     fingerprint, fingerprint_inputs = compute_contract_fingerprint(
         mode=mode,
         accepted_types=items,
+        registry_path=registry_path,
+        registry_hash=registry.registry_hash,
     )
     contracts = operator_contracts()
     strategies = fixture_strategies()

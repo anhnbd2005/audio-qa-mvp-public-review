@@ -126,7 +126,7 @@ class OperatorLanguageQualityOutput(BaseModel):
 class LanguageRegistryEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
     language_entry_id: str
-    source_kind: Literal["CANONICAL", "PARAPHRASE"]
+    source_kind: Literal["CANONICAL", "PARAPHRASE", "CANDIDATE"]
     source_id: str
     canonical_blueprint_id: str
     operator: OperatorId
@@ -151,6 +151,11 @@ class LanguageRegistryEntry(BaseModel):
     context_roles: list[str] = Field(default_factory=list)
     audio_reference_phrase: str | None = None
     proposition_id: str | None = None
+    # Phase 4.2 entity-composition capability metadata. Optional so every
+    # historical entry keeps loading unchanged; None means "classify
+    # structurally, never silently wildcard".
+    entity_scopes: list[str] | None = None
+    entity_reference_owner: Literal["slot", "literal", "none"] | None = None
 
 
 class ProductionLanguageRegistry(BaseModel):
@@ -182,6 +187,12 @@ class ProductionLanguageRegistry(BaseModel):
     def computed_hash(self) -> str:
         payload = self.model_dump()
         payload.pop("registry_hash", None)
+        # Phase 4.2 capability fields are identity-bearing ONLY when declared.
+        # Popping them when None keeps every historical registry hash stable.
+        for entry in payload.get("entries", []):
+            for key in ("entity_scopes", "entity_reference_owner"):
+                if entry.get(key) is None:
+                    entry.pop(key, None)
         return canonical_hash(payload)
 
     def active(self, operator: str, semantic_class: str) -> list[LanguageRegistryEntry]:
@@ -773,6 +784,175 @@ def future_coverage_demos(registry: ProductionLanguageRegistry) -> list[dict[str
         }
         for field, semantic_class in demos
     ]
+
+
+# ---------------------------------------------------------------------------
+# Phase 4.2: entity-composition capability model.
+#
+# Compatibility is structural: a semantic role has exactly ONE presentation
+# owner. An entry either owns the entity reference through the [ENTITY_PHRASE]
+# slot (owner="slot"), owns it literally in the pattern (owner="literal"), or
+# does not reference a single entity (owner="none"). Binding a phrase that the
+# pattern literal already contains would give the same semantic head two
+# owners, so such an entry is filtered BEFORE rendering.
+# ---------------------------------------------------------------------------
+
+_ENTITY_SLOT_RE = re.compile(r"\[[A-Z][A-Z0-9_]*\]")
+
+# Lexicon is used ONLY to classify a legacy entry's owner; it never grants a
+# wildcard capability and never appears in a generic language entry.
+ENTITY_HEAD_LEXICON = (
+    "đoạn âm thanh",
+    "file âm thanh",
+    "người nói",
+    "cuộc hội thoại",
+    "bản ghi",
+)
+
+# Canonical entity heads per scope. A slot-owned entry whose literal already
+# names the field's entity head gives that role two owners.
+SCOPE_ENTITY_HEADS: dict[str, tuple[str, ...]] = {
+    "utterance": ("đoạn âm thanh", "file âm thanh", "âm thanh"),
+    "speaker": ("người nói",),
+    "recording": ("bản ghi", "file âm thanh"),
+    "conversation": ("cuộc hội thoại",),
+}
+
+
+class LanguageCapabilityUnresolved(RuntimeError):
+    """A language entry's entity-composition capability cannot be classified."""
+
+
+class EntryCapability(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    entity_reference_owner: Literal["slot", "literal", "none"]
+    entity_scopes: tuple[str, ...] = ()
+    literal_entity_heads: tuple[str, ...] = ()
+
+
+def pattern_literal(pattern: str) -> str:
+    return _ENTITY_SLOT_RE.sub(" ", pattern)
+
+
+def resolve_entry_capability(entry: LanguageRegistryEntry) -> EntryCapability:
+    """Deterministic classification of an entry's entity-composition capability.
+
+    Declared metadata wins. Historical entries (no declared metadata) are
+    classified from STRUCTURAL pattern features only. An internally
+    inconsistent declaration fails closed with LANGUAGE_ENTRY_CAPABILITY_UNRESOLVED.
+    """
+    has_entity_slot = "[ENTITY_PHRASE]" in entry.pattern
+    literal = pattern_literal(entry.pattern).casefold()
+    heads = tuple(h for h in ENTITY_HEAD_LEXICON if h.casefold() in literal)
+
+    owner = entry.entity_reference_owner
+    if owner is None:
+        if has_entity_slot:
+            owner = "slot"
+        elif heads:
+            owner = "literal"
+        else:
+            owner = "none"
+
+    if owner == "slot" and not has_entity_slot:
+        raise LanguageCapabilityUnresolved(
+            f"LANGUAGE_ENTRY_CAPABILITY_UNRESOLVED:{entry.language_entry_id}:"
+            "owner_slot_but_no_entity_slot"
+        )
+    if owner == "literal" and has_entity_slot:
+        raise LanguageCapabilityUnresolved(
+            f"LANGUAGE_ENTRY_CAPABILITY_UNRESOLVED:{entry.language_entry_id}:"
+            "owner_literal_but_entity_slot_present"
+        )
+
+    if entry.entity_scopes is not None and not entry.entity_scopes:
+        raise LanguageCapabilityUnresolved(
+            f"LANGUAGE_ENTRY_CAPABILITY_UNRESOLVED:{entry.language_entry_id}:"
+            "empty_entity_scopes"
+        )
+
+    return EntryCapability(
+        entity_reference_owner=owner,
+        entity_scopes=tuple(entry.entity_scopes) if entry.entity_scopes else (),
+        literal_entity_heads=heads,
+    )
+
+
+def slot_value_map(bindings: dict[str, Any]) -> dict[str, str]:
+    """Map phrase-bindings to their slot tokens for ownership checking."""
+    mapping: dict[str, str] = {}
+    for binding_key, slot in (
+        ("entity_phrase", "[ENTITY_PHRASE]"),
+        ("attribute_phrase", "[ATTRIBUTE_PHRASE]"),
+        ("content_phrase", "[CONTENT_PHRASE]"),
+        ("value_phrase", "[VALUE_PHRASE]"),
+        ("unit", "[UNIT]"),
+    ):
+        value = bindings.get(binding_key)
+        if value:
+            mapping[slot] = str(value)
+    return mapping
+
+
+def pattern_ownership_conflicts(
+    pattern: str, slot_values: dict[str, str]
+) -> list[tuple[str, str]]:
+    """Slots whose bound phrase the pattern literal already contains.
+
+    Only slots actually present in the pattern are considered: a literal-owned
+    entry deliberately omits [ENTITY_PHRASE].
+    """
+    literal = pattern_literal(pattern).casefold()
+    conflicts: list[tuple[str, str]] = []
+    for slot, phrase in slot_values.items():
+        if slot == "[UNIT]":
+            # Unit is a measurement label, not an entity/attribute head; a
+            # pattern may legitimately name the label "đơn vị" and bind [UNIT].
+            continue
+        if not phrase or slot not in pattern:
+            continue
+        if phrase.casefold() in literal:
+            conflicts.append((slot, phrase))
+    return conflicts
+
+
+def entry_capability_compatible(
+    entry: LanguageRegistryEntry,
+    *,
+    entity_scope: str | None,
+    unit: str | None,
+    slot_values: dict[str, str],
+) -> tuple[bool, str | None]:
+    """Fail-closed compatibility of an entry with a field's composition needs."""
+    caps = resolve_entry_capability(entry)
+
+    if caps.entity_scopes:
+        if not entity_scope or (
+            entity_scope not in caps.entity_scopes
+            and "*" not in caps.entity_scopes
+        ):
+            return False, "ENTITY_SCOPE_INCOMPATIBLE"
+
+    if unit is None and entry.unit_policy == "required":
+        return False, "UNIT_REQUIRED_BUT_ABSENT"
+    if unit is not None and entry.unit_policy == "forbidden":
+        return False, "UNIT_FORBIDDEN_BUT_PRESENT"
+
+    if pattern_ownership_conflicts(entry.pattern, slot_values):
+        return False, "SEMANTIC_OWNERSHIP_CONFLICT"
+
+    # A slot-owned entry already binding [ENTITY_PHRASE] must not also name the
+    # field's entity head literally, or the entity role would have two owners.
+    if caps.entity_reference_owner == "slot" and entity_scope:
+        literal = pattern_literal(entry.pattern).casefold()
+        if any(
+            head.casefold() in literal
+            for head in SCOPE_ENTITY_HEADS.get(entity_scope, ())
+        ):
+            return False, "SEMANTIC_OWNERSHIP_CONFLICT"
+
+    return True, None
 
 
 

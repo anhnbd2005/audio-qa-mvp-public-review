@@ -53,7 +53,13 @@ def hash_tree(path: Path) -> dict[str, str]:
 
 
 def vimd_field_specs() -> dict[str, SemanticFieldSpec]:
-    """Canonical ViMD semantic field specifications."""
+    """LEGACY / MIGRATION ONLY.
+
+    Historical ViMD field specs retained for existing production/tests. The
+    normal onboarding path resolves specs declaratively via
+    ``compile_semantic_field_specs`` (DatasetProfile + optional sidecar).
+    Do NOT add new datasets here.
+    """
     specs = [
         SemanticFieldSpec(
             field_name="region",
@@ -94,7 +100,12 @@ def vimd_field_specs() -> dict[str, SemanticFieldSpec]:
 
 
 def vimedcss_field_specs() -> dict[str, SemanticFieldSpec]:
-    """Canonical ViMedCSS semantic field specifications."""
+    """LEGACY / MIGRATION ONLY.
+
+    Historical ViMedCSS field specs retained for existing canonical
+    production/tests. The normal onboarding path uses the declarative sidecar
+    at ``resources/field_specs/vimedcss.json``. Do NOT add new datasets here.
+    """
     specs = [
         SemanticFieldSpec(
             field_name="segment_text",
@@ -144,7 +155,13 @@ def vimedcss_field_specs() -> dict[str, SemanticFieldSpec]:
 
 
 def resolve_legacy_field_specs(dataset_id: str) -> dict[str, SemanticFieldSpec] | None:
-    """Isolated legacy adapter resolving field specs for historical datasets."""
+    """LEGACY / MIGRATION ONLY — NOT the normal staged onboarding path.
+
+    Resolves field specs for historical datasets from hardcoded Python. The
+    normal path is ``compile_semantic_field_specs`` (DatasetProfile +
+    registry-conventional migration sidecar). New datasets MUST NOT add a
+    branch here.
+    """
     if dataset_id == "vimedcss":
         return vimedcss_field_specs()
     if dataset_id == "vimd":

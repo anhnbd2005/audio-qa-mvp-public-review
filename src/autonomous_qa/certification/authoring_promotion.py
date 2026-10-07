@@ -38,10 +38,21 @@ from src.autonomous_qa.compiler.semantic_comparators import (
     comparator_set_hash,
     load_comparator_registry,
 )
+from src.autonomous_qa.compiler.semantic_field_specs import (
+    SemanticFieldSpecBundle,
+    compile_semantic_field_specs,
+    load_migration_sidecar,
+)
 from src.autonomous_qa.compiler.semantic_task import (
     SemanticCatalog,
     SemanticTaskSpec,
     load_semantic_catalog,
+)
+from src.autonomous_qa.language.candidate_registry import (
+    CANDIDATE_CAPABILITIES_RESOURCE,
+    build_candidate_language_registry,
+    load_candidate_capabilities,
+    write_registry_deterministically,
 )
 from src.autonomous_qa.language.language_quality import (
     ProductionLanguageRegistry,
@@ -58,6 +69,9 @@ from src.common.config import ROOT
 
 LANGUAGE_REGISTRY_PATH = RESOURCE_ROOT / "language" / "production_registry.json"
 DEFAULT_SCRATCH_DIR = ROOT / "outputs" / "_scratch" / "promotion"
+DEFAULT_LANGUAGE_CAPABILITY_SCRATCH = (
+    ROOT / "outputs" / "_scratch" / "language_capability" / "phase4_2"
+)
 
 STAGE_PRIMITIVE_DISCOVERY = "primitive_semantic_discovery"
 STAGE_COMPOSITE_DISCOVERY = "composite_discovery"
@@ -211,6 +225,18 @@ class PromotionBundle(BaseModel):
 
     expected_current_hashes: dict[str, str] = Field(default_factory=dict)
     staged_language_preflight: dict[str, Any] = Field(default_factory=dict)
+
+    # Phase 4.2 language-infrastructure evidence. Candidate language preflight
+    # is computed against a SCRATCH candidate registry; it is deliberately
+    # distinct from the canonical staged preflight that gates apply_ready.
+    semantic_field_specs_hash: str = ""
+    semantic_field_specs_source: str = ""
+    canonical_language_registry_hash: str = ""
+    candidate_language_registry_hash: str = ""
+    candidate_language_registry: dict[str, Any] | None = None
+    candidate_language_preflight: dict[str, Any] = Field(default_factory=dict)
+    language_infra_ready: bool = False
+    language_registry_change_required: bool = False
 
     fresh_contract_fingerprints: dict[str, str] = Field(default_factory=dict)
     stale_current_artifacts: tuple[str, ...] = ()
@@ -743,19 +769,36 @@ def run_staged_preflight_for_promotion(
     catalog_dict: dict[str, Any],
     field_specs: dict[str, Any] | None = None,
     run_dir: Path | None = None,
+    *,
+    registry: ProductionLanguageRegistry | None = None,
+    registry_path: Path | None = None,
 ) -> dict[str, Any]:
-    """Runs real staged language preflight validation against compiled candidate catalog."""
+    """Runs real staged language preflight validation against compiled candidate catalog.
+
+    ``field_specs`` must be supplied by the declarative compiler in the normal
+    path. The legacy dataset-ID fallback remains ONLY for historical callers and
+    is never the normal onboarding mechanism.
+    """
     from src.autonomous_qa.language.language_preflight import accepted_types_from_semantic_catalog
 
     if field_specs is None:
         from src.autonomous_qa.language.template_engine import resolve_legacy_field_specs
+
+        # LEGACY / MIGRATION ONLY — not the normal staged path.
         field_specs = resolve_legacy_field_specs(dataset_id)
 
     if field_specs is None:
         raise PromotionError("FIELD_SPECS_REQUIRED", f"Explicit field_specs required for {dataset_id}")
 
     accepted_types = accepted_types_from_semantic_catalog(catalog_dict, field_specs=field_specs)
-    res = run_preflight(mode="dataset", accepted_types=accepted_types, dataset=dataset_id, write_outputs=False)
+    res = run_preflight(
+        mode="dataset",
+        accepted_types=accepted_types,
+        dataset=dataset_id,
+        write_outputs=False,
+        registry=registry,
+        registry_path=registry_path,
+    )
     audit = res["audit"]
     return {
         "status": audit["result"],
@@ -765,7 +808,143 @@ def run_staged_preflight_for_promotion(
         "accepted_type_count": audit["accepted_type_count"],
         "accepted_types": accepted_types,
         "issues": res.get("issues", []),
+        "coverage": res.get("coverage", []),
+        "render_matrix": res.get("render_matrix", []),
+        "registry_hash": audit.get("language_registry_hash"),
     }
+
+
+def _resolve_declarative_field_specs(
+    dataset_id: str,
+    profile: dict[str, Any],
+    required_fields: set[str],
+    resource_root: Path,
+) -> tuple[dict[str, Any], str, str]:
+    """Compile field specs from the DatasetProfile + optional migration sidecar.
+
+    Returns (field_specs, source, logical_hash). No dataset-ID Python branch:
+    the sidecar is located by a generic path convention.
+    """
+    sidecar_path = resource_root / "field_specs" / f"{dataset_id}.json"
+    migration_specs = load_migration_sidecar(sidecar_path) if sidecar_path.exists() else None
+    bundle = compile_semantic_field_specs(
+        profile,
+        required_fields=required_fields,
+        migration_specs=migration_specs,
+        dataset_id=dataset_id,
+    )
+    return bundle.field_specs, bundle.source, bundle.logical_hash()
+
+
+def _required_source_fields(catalog_dict: dict[str, Any]) -> set[str]:
+    fields: set[str] = set()
+    for task in catalog_dict.get("tasks", []):
+        field = task.get("source_role_mapping", {}).get("source_field")
+        if field:
+            fields.add(field)
+        for output in task.get("outputs", []):
+            for dep in output.get("dependencies", []):
+                fields.add(dep)
+    return fields
+
+
+def _registry_entry_dump(registry: ProductionLanguageRegistry) -> dict[str, dict[str, Any]]:
+    return {
+        entry.language_entry_id: entry.model_dump(mode="json")
+        for entry in registry.entries
+    }
+
+
+def _language_registry_impact(
+    resource_root: Path,
+    canonical_registry: ProductionLanguageRegistry,
+    candidate_registry: ProductionLanguageRegistry,
+    *,
+    cross_dataset_preflight_delta: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Report the impact of replacing the canonical registry with the candidate.
+
+    Read-only: no canonical resource is mutated. Identifies entries added,
+    modified or removed, and every canonical contract/manifest whose pinned
+    ``language_registry_hash`` would become stale.
+    """
+    candidate_hash = candidate_registry.registry_hash
+    affected_contracts: list[str] = []
+    affected_manifests: list[str] = []
+    production_dir = resource_root / "production"
+    if production_dir.exists():
+        for path in sorted(production_dir.glob("*.json")):
+            data = _read_json(path)
+            if not isinstance(data, dict):
+                continue
+            if "language_registry_hash" not in data:
+                continue
+            if data.get("language_registry_hash") != candidate_hash:
+                if path.name.endswith(".promotion.json"):
+                    affected_manifests.append(path.name)
+                else:
+                    affected_contracts.append(path.name)
+
+    base = _registry_entry_dump(canonical_registry)
+    cand = _registry_entry_dump(candidate_registry)
+    added = sorted(set(cand) - set(base))
+    removed = sorted(set(base) - set(cand))
+    modified = sorted(
+        entry_id for entry_id in (set(base) & set(cand)) if base[entry_id] != cand[entry_id]
+    )
+    return {
+        "current_registry_hash": canonical_registry.registry_hash,
+        "candidate_registry_hash": candidate_hash,
+        "language_registry_change_required": candidate_hash != canonical_registry.registry_hash,
+        "added_entry_ids": added,
+        "modified_entry_ids": modified,
+        "removed_entry_ids": removed,
+        "affected_production_contracts": affected_contracts,
+        "affected_promotion_manifests": affected_manifests,
+        "cross_dataset_preflight_delta": cross_dataset_preflight_delta or [],
+    }
+
+
+def _cross_dataset_preflight_delta(
+    canonical_registry: ProductionLanguageRegistry,
+    candidate_registry: ProductionLanguageRegistry,
+    candidate_registry_path: Path,
+    datasets: tuple[str, ...] = ("vimd", "vietmdd", "vimedcss"),
+) -> list[dict[str, Any]]:
+    from src.autonomous_qa.language.language_preflight import get_dataset_accepted_types
+
+    delta: list[dict[str, Any]] = []
+    for dataset in datasets:
+        try:
+            accepted = get_dataset_accepted_types(dataset)
+        except Exception:  # pragma: no cover - dataset resolver unavailable
+            continue
+        base = run_preflight(
+            mode="dataset", accepted_types=accepted, dataset=dataset, write_outputs=False
+        )
+        cand = run_preflight(
+            mode="dataset",
+            accepted_types=accepted,
+            dataset=dataset,
+            write_outputs=False,
+            registry=candidate_registry,
+            registry_path=candidate_registry_path,
+        )
+        delta.append(
+            {
+                "dataset": dataset,
+                "baseline_status": base["audit"]["result"],
+                "baseline_blocking": base["audit"]["blocking_issue_count"],
+                "candidate_status": cand["audit"]["result"],
+                "candidate_blocking": cand["audit"]["blocking_issue_count"],
+                "new_blocking": max(
+                    0,
+                    cand["audit"]["blocking_issue_count"]
+                    - base["audit"]["blocking_issue_count"],
+                ),
+            }
+        )
+    return delta
 
 
 def compile_candidate_language_resource(
@@ -803,6 +982,8 @@ def prepare_promotion(
     capability_exclusions: dict[str, str] | None = None,
     field_specs: dict[str, Any] | None = None,
     resource_root: Path = RESOURCE_ROOT,
+    language_capability_root: Path | None = None,
+    candidate_capabilities_path: Path = CANDIDATE_CAPABILITIES_RESOURCE,
 ) -> PromotionBundle:
     """Performs the STAGED PREPARE (dry-run) promotion transaction.
 
@@ -830,6 +1011,7 @@ def prepare_promotion(
     profile_hash = _sha256_file(profile_path)
     if not profile_hash:
         raise PromotionError("MISSING_AUTHORING_EVIDENCE", "dataset_profile_hash is empty")
+    profile_payload = _read_json(profile_path)
 
     readiness = evaluate_promotion_readiness(run_dir)
     gate_pass_candidates = readiness["authoring_gate_pass_candidates"]
@@ -942,10 +1124,62 @@ def prepare_promotion(
 
     candidate_language = compile_candidate_language_resource(dataset_id, selected_candidates, id_mapping, run_dir)
 
+    # --- Phase 4.2: declarative field-spec resolution -----------------------
+    required_fields = _required_source_fields(candidate_catalog)
+    if field_specs is None:
+        field_specs, field_specs_source, field_specs_hash = _resolve_declarative_field_specs(
+            dataset_id, profile_payload, required_fields, resource_root
+        )
+    else:
+        explicit_bundle = SemanticFieldSpecBundle(
+            dataset_id=dataset_id, source="explicit", field_specs=field_specs
+        )
+        field_specs_source = "explicit"
+        field_specs_hash = explicit_bundle.logical_hash()
+
     staged_preflight_res = run_staged_preflight_for_promotion(
         dataset_id, candidate_catalog, field_specs=field_specs, run_dir=run_dir
     )
     staged_pass = (staged_preflight_res["status"] == "PREFLIGHT_PASS")
+
+    # --- Phase 4.2: candidate language registry (SCRATCH ONLY) --------------
+    canonical_registry = load_language_registry_from_root(resource_root)
+    candidate_registry = build_candidate_language_registry(
+        canonical_registry, load_candidate_capabilities(candidate_capabilities_path)
+    )
+    cap_scratch_dir = (language_capability_root or DEFAULT_LANGUAGE_CAPABILITY_SCRATCH) / dataset_id
+    candidate_registry_path = (
+        cap_scratch_dir / "candidate_production_language_registry.json"
+    )
+    write_registry_deterministically(candidate_registry, candidate_registry_path)
+
+    candidate_preflight_res = run_staged_preflight_for_promotion(
+        dataset_id,
+        candidate_catalog,
+        field_specs=field_specs,
+        run_dir=run_dir,
+        registry=candidate_registry,
+        registry_path=candidate_registry_path,
+    )
+    candidate_pass = (candidate_preflight_res["status"] == "PREFLIGHT_PASS")
+    language_registry_change_required = (
+        candidate_registry.registry_hash != canonical_registry.registry_hash
+    )
+    cross_delta: list[dict[str, Any]] = []
+    if resource_root.resolve() == RESOURCE_ROOT.resolve():
+        cross_delta = _cross_dataset_preflight_delta(
+            canonical_registry, candidate_registry, candidate_registry_path
+        )
+    impact = _language_registry_impact(
+        resource_root,
+        canonical_registry,
+        candidate_registry,
+        cross_dataset_preflight_delta=cross_delta,
+    )
+    _write_json(
+        cap_scratch_dir / "registry_impact.json",
+        {"dataset_id": dataset_id, **impact},
+    )
 
     staged_catalog_type_ids = tuple(sorted(t["type_id"] for t in candidate_catalog.get("tasks", [])))
     staged_accepted_type_ids = tuple(sorted(a.dataset_type_id for a in staged_preflight_res.get("accepted_types", [])))
@@ -1043,6 +1277,14 @@ def prepare_promotion(
             "language_registry_hash": current_lang_hash,
         },
         staged_language_preflight=staged_preflight_res,
+        semantic_field_specs_hash=field_specs_hash,
+        semantic_field_specs_source=field_specs_source,
+        canonical_language_registry_hash=canonical_registry.registry_hash,
+        candidate_language_registry_hash=candidate_registry.registry_hash,
+        candidate_language_registry=candidate_registry.model_dump(mode="json"),
+        candidate_language_preflight=candidate_preflight_res,
+        language_infra_ready=candidate_pass,
+        language_registry_change_required=language_registry_change_required,
         fresh_contract_fingerprints={
             "contract_fingerprint": staged_preflight_res.get("contract_fingerprint", ""),
         },
