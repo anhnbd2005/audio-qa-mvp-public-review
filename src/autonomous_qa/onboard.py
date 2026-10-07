@@ -74,17 +74,18 @@ def onboard_dataset(
         "applied": False,
     }
 
-    if stop_after in ("plan", "prepare") and not apply_canonical:
-        result["status"] = "STOPPED_AFTER_PLAN_PREPARE_ZERO_CANONICAL_MUTATIONS"
+    if stop_after in ("prepare", "plan") and not apply_canonical:
+        result["status"] = "STOPPED_AFTER_PREPARE_ZERO_CANONICAL_MUTATIONS"
         return result
 
     # STAGE 2: Apply promotion if explicitly requested
-    if apply_canonical:
+    if apply_canonical or stop_after == "apply":
         scratch_bundle_path = (output_root or (ROOT / "outputs" / "_scratch" / "promotion" / dataset_id / run_dir.name)) / "promotion_bundle.json"
         apply_res = apply_promotion(scratch_bundle_path)
         result["applied"] = True
         result["apply_result"] = apply_res
         result["canonical_mutations"] = 3  # catalog, contract, manifest
+        result["status"] = "PROMOTION_APPLIED"
 
     return result
 
@@ -101,9 +102,9 @@ def _cli() -> argparse.ArgumentParser:
     parser.add_argument("--from-authoring-run", help="Authoring run ID or directory")
     parser.add_argument(
         "--stop-after",
-        choices=["plan", "prepare", "apply"],
-        default="plan",
-        help="Pipeline phase to stop after (default: plan)",
+        choices=["prepare", "apply", "production_readiness", "production_plan"],
+        default="prepare",
+        help="Pipeline phase to stop after (default: prepare)",
     )
     parser.add_argument("--apply-promotion", action="store_true", help="Explicitly apply canonical promotion")
     parser.add_argument("--output-root", type=Path, help="Output root for staged candidate artifacts")

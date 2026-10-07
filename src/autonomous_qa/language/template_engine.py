@@ -143,6 +143,15 @@ def vimedcss_field_specs() -> dict[str, SemanticFieldSpec]:
     return {item.field_name: item for item in specs}
 
 
+def resolve_legacy_field_specs(dataset_id: str) -> dict[str, SemanticFieldSpec] | None:
+    """Isolated legacy adapter resolving field specs for historical datasets."""
+    if dataset_id == "vimedcss":
+        return vimedcss_field_specs()
+    if dataset_id == "vimd":
+        return vimd_field_specs()
+    return None
+
+
 
 def _demo_contract(
     type_id: str, operator: str, field: str, answer_kind: str

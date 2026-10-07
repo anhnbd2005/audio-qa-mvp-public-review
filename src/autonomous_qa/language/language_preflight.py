@@ -740,14 +740,22 @@ def _resource_identity() -> dict[str, Any]:
     }
 
 
+CANONICAL_PREFLIGHT_IMPLEMENTATION_SHA256 = "460909a2ecbab2d97d32a403f9dcb0f65c412a334f3c4dfc9154e8c2d8f62139"
+
+
 def compute_contract_fingerprint(
     *,
     mode: str,
     accepted_types: list[AcceptedLanguageType],
+    implementation_identity: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
     inputs = {
         "preflight_contract_id": PREFLIGHT_CONTRACT_ID,
-        "preflight_implementation_sha256": "460909a2ecbab2d97d32a403f9dcb0f65c412a334f3c4dfc9154e8c2d8f62139",
+        "preflight_implementation_sha256": (
+            implementation_identity
+            if implementation_identity is not None
+            else CANONICAL_PREFLIGHT_IMPLEMENTATION_SHA256
+        ),
         "mode": mode,
         "resources": _resource_identity(),
         "operator_contract_id": OPERATOR_CONTRACT_ID,
@@ -930,24 +938,12 @@ def vimd_accepted_types() -> list[AcceptedLanguageType]:
 def accepted_types_from_semantic_catalog(
     catalog: Any,
     field_specs: dict[str, SemanticFieldSpec] | None = None,
-    dataset_id: str | None = None,
 ) -> list[AcceptedLanguageType]:
     """Generates AcceptedLanguageType list directly from a candidate SemanticCatalog with NO type-id substring heuristics."""
-    from src.autonomous_qa.compiler.semantic_task import SemanticCatalog
-    from src.autonomous_qa.language.template_engine import vimedcss_field_specs, vimd_field_specs
-
-    if isinstance(catalog, dict):
-        ds_id = dataset_id or catalog.get("dataset")
-        tasks = catalog.get("tasks", [])
-    else:
-        ds_id = dataset_id or catalog.dataset
-        tasks = catalog.tasks
-
     if field_specs is None:
-        if ds_id == "vimedcss":
-            field_specs = vimedcss_field_specs()
-        else:
-            field_specs = vimd_field_specs()
+        raise PreflightInputError("FIELD_SPECS_REQUIRED")
+
+    tasks = catalog.get("tasks", []) if isinstance(catalog, dict) else catalog.tasks
 
     result: list[AcceptedLanguageType] = []
     op_contracts = operator_contracts()
@@ -957,23 +953,13 @@ def accepted_types_from_semantic_catalog(
         source_role = task_dict.get("source_role_mapping", {})
         outputs = task_dict.get("outputs", [])
         field = source_role.get("source_field") or (
-            outputs[0]["dependencies"][0] if outputs and outputs[0].get("dependencies") else "segment_text"
+            outputs[0]["dependencies"][0] if outputs and outputs[0].get("dependencies") else None
         )
+        if not field:
+            raise PreflightInputError("MISSING_EXECUTABLE_SOURCE_FIELD")
         if field not in field_specs:
-            if ds_id in ("vimedcss", "vimd", "vietmdd"):
-                raise PreflightInputError(f"FIELD_SPEC_MISSING:{field}")
-            spec = SemanticFieldSpec(
-                field_name=field,
-                semantic_class="numeric_attribute" if "count" in field or "num" in field else "categorical_attribute",
-                entity_scope="utterance",
-                entity_phrase="item",
-                attribute_phrase=field,
-                value_phrase="value",
-                value_policy={"normalization": "identity", "match_policy": "exact"},
-                source="synthetic_spec",
-            )
-        else:
-            spec = field_specs[field]
+            raise PreflightInputError(f"FIELD_SPEC_MISSING:{field}")
+        spec = field_specs[field]
 
         op_name = task_dict.get("operator", "DIRECT")
         if op_name not in op_contracts:
@@ -1018,9 +1004,10 @@ def accepted_types_from_semantic_catalog(
 def vimedcss_accepted_types() -> list[AcceptedLanguageType]:
     from src.autonomous_qa.compiler.canonical_resources import get_semantic_catalog_path
     from src.autonomous_qa.compiler.semantic_task import load_semantic_catalog
+    from src.autonomous_qa.language.template_engine import vimedcss_field_specs
 
     catalog = load_semantic_catalog(get_semantic_catalog_path("vimedcss"))
-    return accepted_types_from_semantic_catalog(catalog, dataset_id="vimedcss")
+    return accepted_types_from_semantic_catalog(catalog, field_specs=vimedcss_field_specs())
 
 
 _DATASET_ACCEPTED_TYPE_RESOLVERS = {

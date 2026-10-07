@@ -253,6 +253,7 @@ def build_type_contracts_from_legacy_registry(registry: dict[str, Any]) -> list[
 
 def build_type_contracts_from_semantic_catalog(
     catalog: Any,
+    field_specs: dict[str, Any] | None = None,
 ) -> list[TypeContract]:
     """Clean generic canonical/staged path from SemanticCatalog with zero type-id heuristics."""
     tasks = catalog.get("tasks", []) if isinstance(catalog, dict) else catalog.tasks
@@ -260,7 +261,10 @@ def build_type_contracts_from_semantic_catalog(
 
     for task_raw in tasks:
         task = task_raw.model_dump(mode="json") if hasattr(task_raw, "model_dump") else task_raw
-        operator = task.get("operator", "DIRECT")
+        if "operator" not in task:
+            raise ValueError("MISSING_STRUCTURED_OPERATOR")
+        operator = task["operator"]
+
         if operator in {"TARGET_MATCH", "EQUALITY"}:
             answer_mode = "BOOLEAN"
         elif operator == "PAIRWISE_SELECTION":
@@ -273,12 +277,29 @@ def build_type_contracts_from_semantic_catalog(
         source_role = task.get("source_role_mapping", {})
         outputs = task.get("outputs", [])
         source_field = source_role.get("source_field") or (
-            outputs[0]["dependencies"][0] if outputs and outputs[0].get("dependencies") else "segment_text"
+            outputs[0]["dependencies"][0] if outputs and outputs[0].get("dependencies") else None
         )
-        audio_arity = task.get("audio_arity", 1)
+        if not source_field:
+            raise ValueError("MISSING_STRUCTURED_SOURCE_FIELD")
+
+        if "audio_arity" not in task:
+            raise ValueError("MISSING_STRUCTURED_AUDIO_ARITY")
+        audio_arity = task["audio_arity"]
+
+        if not outputs or not outputs[0].get("kind"):
+            raise ValueError("MISSING_STRUCTURED_OUTPUTS")
+        answer_kind = outputs[0]["kind"]
+
         condition_fields = ["target_value"] if operator in {"TARGET_MATCH", "PAIRWISE_SELECTION"} else []
         type_id = task["type_id"]
-        answer_kind = outputs[0]["kind"] if outputs else operator_contracts()[operator].answer_kind
+
+        normalize_text = False
+        if field_specs and source_field in field_specs:
+            spec = field_specs[source_field]
+            val_policy = getattr(spec, "value_policy", None) or (spec.get("value_policy", {}) if isinstance(spec, dict) else None)
+            match_norm = getattr(val_policy, "normalization", None) or (val_policy.get("normalization") if isinstance(val_policy, dict) else None)
+            if match_norm and match_norm != "identity":
+                normalize_text = True
 
         contracts.append(
             TypeContract(
@@ -301,7 +322,7 @@ def build_type_contracts_from_semantic_catalog(
                 },
                 instantiation_policy={
                     "split": "train",
-                    "normalize_text": source_field in ("text", "segment_text"),
+                    "normalize_text": normalize_text,
                 },
                 source_status="SUPPORTED",
             )

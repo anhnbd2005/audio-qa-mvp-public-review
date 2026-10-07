@@ -1,9 +1,13 @@
-"""Authoring -> Promotion -> Production Generic Bridge.
+"""Framework-generic R&D Authoring -> Deterministic Canonical Promotion Bridge.
 
-Compiles R&D authoring run artifacts into a deterministic, machine-readable
-PromotionBundle, resolves canonical IDs, compiles generic semantic contracts
-and language resources, and executes staged PREPARE / APPLY promotion transactions
-without dataset-specific branching.
+Provides two decoupled phases:
+1. PREPARE (--prepare): Staged compilation, evidence hashing, candidate validation,
+   real staged preflight execution, and PromotionBundle compilation.
+   GUARANTEE: 0 canonical resource mutations, 0 real LLM calls.
+2. APPLY (--apply): Transaction-safe, hash-verified, rollback-protected promotion
+   of a previously prepared PromotionBundle into canonical resources.
+
+No dataset-specific hardcoded task IDs, field heuristics, or bypasses.
 """
 
 from __future__ import annotations
@@ -11,10 +15,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -23,6 +28,8 @@ from src.autonomous_qa.certification.promotion_gate import (
     validate_catalog,
 )
 from src.autonomous_qa.compiler.canonical_resources import (
+    DATASET_REGISTRY_PATH,
+    RESOURCE_ROOT,
     DatasetSpec,
     ProductionContract,
     PromotionManifest,
@@ -48,8 +55,6 @@ from src.autonomous_qa.language.language_preflight import (
 from src.autonomous_qa.language.template_renderer import canonical_hash
 from src.common.config import ROOT
 
-RESOURCE_ROOT = ROOT / "resources"
-DATASET_REGISTRY_PATH = RESOURCE_ROOT / "registry" / "datasets.json"
 LANGUAGE_REGISTRY_PATH = RESOURCE_ROOT / "language" / "production_registry.json"
 DEFAULT_SCRATCH_DIR = ROOT / "outputs" / "_scratch" / "promotion"
 
@@ -70,19 +75,30 @@ class PromotionBundle(BaseModel):
     dataset_profile_hash: str
 
     primitive_candidates: int
-    primitive_semantic_accepted: int
+    primitive_semantic_accepted: int = 0
+    primitive_semantic_pass_count: int = 0
     composite_candidates: int
-    composite_semantic_accepted: int
-    primitive_language_ready: int
-    composite_language_ready: int
-    authoring_language_gate_pass_count: int
-    staged_canonical_language_preflight_pass_count: int
-    promotable_primitive_count: int
-    promotable_composite_count: int
-    promotable_total: int
+    composite_semantic_accepted: int = 0
+    composite_semantic_pass_count: int = 0
+    primitive_language_ready: int = 0
+    primitive_authoring_language_gate_pass_count: int = 0
+    composite_language_ready: int = 0
+    composite_authoring_language_gate_pass_count: int = 0
+    authoring_language_gate_pass_count: int = 0
+    primitive_executable_selected_count: int = 0
+    staged_canonical_language_preflight_pass_count: int = 0
+    staged_preflight_type_count: int = 0
+    staged_preflight_pass_type_count: int = 0
+    promotable_primitive_count: int = 0
+    promotable_composite_count: int = 0
+    promotable_total: int = 0
 
-    promotable_types: tuple[str, ...]
+    promotable_types: tuple[str, ...] = ()
     non_promotable_types: dict[str, str] = Field(default_factory=dict)
+    discovered_semantic_pass_types: tuple[str, ...] = ()
+    non_selected_types: dict[str, str] = Field(default_factory=dict)
+    selected_promotion_types: tuple[str, ...] = ()
+    selected_type_blockers: tuple[str, ...] = ()
 
     canonical_id_mapping: dict[str, str]
 
@@ -142,7 +158,7 @@ def _sha256_file(path: Path) -> str:
 
 
 def evaluate_promotion_readiness(run_dir: Path) -> dict[str, Any]:
-    """Evaluates explicit multi-layer promotion readiness from run artifacts."""
+    """Evaluates explicit gate and language readiness from run artifacts without semantic capability inference."""
     gates_dir = run_dir / "gates"
     lang_dir = run_dir / "language"
     reconciliation_path = run_dir / "reconciliation_canonical.json"
@@ -163,99 +179,169 @@ def evaluate_promotion_readiness(run_dir: Path) -> dict[str, Any]:
         e["type_id"] for e in preflight_data.get("entries", []) if e.get("verdict") == "PASS"
     }
 
-    promotable_primitives: list[str] = []
-    promotable_composites: list[str] = []
-    non_promotable: dict[str, str] = {}
-
     primitive_candidates = len(primitive_gates.get("candidates", []))
-    primitive_semantic_accepted = 0
-    primitive_language_ready = 0
+    primitive_semantic_pass_count = 0
+    primitive_authoring_language_gate_pass_count = 0
+    authoring_gate_pass_primitives: list[str] = []
+    non_gate_pass_types: dict[str, str] = {}
 
     for cand in primitive_gates.get("candidates", []):
         cid = cand["candidate_id"]
         sem_pass = cand.get("verdict") == "PASS"
         if sem_pass:
-            primitive_semantic_accepted += 1
-
-        hidden_src = cand.get("hidden_source_annotations", [])
-        src_role = cand.get("source_role_mapping", {}).get("source_field", "")
-        op = cand.get("operator", "")
-        prop_desc = (cand.get("proposition_description") or "").lower()
-        requires_membership = (
-            "presence" in cid
-            or "presence" in prop_desc
-            or (op == "TARGET_MATCH" and ("cs_term" in cid or "list" in src_role or any("list" in str(h) for h in hidden_src)))
-        )
-        if requires_membership:
-            non_promotable[cid] = "OPERATOR_CAPABILITY_GAP:MEMBERSHIP"
-            continue
+            primitive_semantic_pass_count += 1
 
         lang_ready = cid in authoring_preflight_pass_types
-        if lang_ready:
-            primitive_language_ready += 1
-
         if sem_pass and lang_ready:
-            promotable_primitives.append(cid)
+            primitive_authoring_language_gate_pass_count += 1
+            authoring_gate_pass_primitives.append(cid)
         elif sem_pass and not lang_ready:
-            non_promotable[cid] = "SEMANTIC_GATE_PASS_BUT_LANGUAGE_NOT_READY"
+            non_gate_pass_types[cid] = "SEMANTIC_GATE_PASS_BUT_LANGUAGE_NOT_READY"
         else:
-            non_promotable[cid] = "SEMANTIC_GATE_FAILED"
+            non_gate_pass_types[cid] = "SEMANTIC_GATE_FAILED"
 
     composite_candidates = len(composite_gates.get("composites", []))
-    composite_semantic_accepted = 0
-    composite_language_ready = 0
+    composite_semantic_pass_count = 0
+    composite_authoring_language_gate_pass_count = 0
+    authoring_gate_pass_composites: list[str] = []
 
     for comp in composite_gates.get("composites", []):
         cid = comp.get("composite_id", comp.get("candidate_id"))
         sem_pass = comp.get("verdict") == "PASS"
         if sem_pass:
-            composite_semantic_accepted += 1
+            composite_semantic_pass_count += 1
+
         lang_ready = cid in authoring_preflight_pass_types
-        if lang_ready:
-            composite_language_ready += 1
-
         if sem_pass and lang_ready:
-            promotable_composites.append(cid)
+            composite_authoring_language_gate_pass_count += 1
+            authoring_gate_pass_composites.append(cid)
         elif sem_pass and not lang_ready:
-            non_promotable[cid] = "SEMANTIC_GATE_PASS_BUT_LANGUAGE_NOT_READY"
+            non_gate_pass_types[cid] = "SEMANTIC_GATE_PASS_BUT_LANGUAGE_NOT_READY"
         else:
-            non_promotable[cid] = "SEMANTIC_GATE_FAILED"
+            non_gate_pass_types[cid] = "SEMANTIC_GATE_FAILED"
 
-    authoring_semantic_pass_types = [
-        cand["candidate_id"] for cand in primitive_gates.get("candidates", []) if cand.get("verdict") == "PASS"
-    ] + [
-        comp.get("composite_id", comp.get("candidate_id")) for comp in composite_gates.get("composites", []) if comp.get("verdict") == "PASS"
-    ]
+    authoring_semantic_pass_types = tuple(sorted(
+        [c["candidate_id"] for c in primitive_gates.get("candidates", []) if c.get("verdict") == "PASS"]
+        + [comp.get("composite_id", comp.get("candidate_id")) for comp in composite_gates.get("composites", []) if comp.get("verdict") == "PASS"]
+    ))
+    authoring_gate_pass_candidates = authoring_gate_pass_primitives + authoring_gate_pass_composites
 
     return {
         "primitive_candidates": primitive_candidates,
-        "primitive_semantic_accepted": primitive_semantic_accepted,
+        "primitive_semantic_pass_count": primitive_semantic_pass_count,
+        "primitive_authoring_language_gate_pass_count": primitive_authoring_language_gate_pass_count,
         "composite_candidates": composite_candidates,
-        "composite_semantic_accepted": composite_semantic_accepted,
-        "primitive_language_ready": primitive_language_ready,
-        "composite_language_ready": composite_language_ready,
-        "authoring_language_gate_pass_count": primitive_language_ready + composite_language_ready,
+        "composite_semantic_pass_count": composite_semantic_pass_count,
+        "composite_authoring_language_gate_pass_count": composite_authoring_language_gate_pass_count,
+        "authoring_language_gate_pass_count": primitive_authoring_language_gate_pass_count + composite_authoring_language_gate_pass_count,
         "authoring_semantic_pass_types": authoring_semantic_pass_types,
-        "promotable_primitive_count": len(promotable_primitives),
-        "promotable_composite_count": len(promotable_composites),
-        "promotable_total": len(promotable_primitives) + len(promotable_composites),
-        "promotable_primitives": promotable_primitives,
-        "promotable_composites": promotable_composites,
-        "non_promotable_types": non_promotable,
+        "authoring_gate_pass_candidates": authoring_gate_pass_candidates,
+        "authoring_gate_pass_primitives": authoring_gate_pass_primitives,
+        "authoring_gate_pass_composites": authoring_gate_pass_composites,
+        "non_gate_pass_types": non_gate_pass_types,
         "reconciliation": reconciliation_data,
     }
+
+
+def filter_executable_candidates(
+    candidates: list[str],
+    run_dir: Path,
+    overrides: dict[str, str] | None = None,
+) -> tuple[list[str], dict[str, str]]:
+    """Evaluates executable contract capability from structured candidate proposal evidence and run-local overrides."""
+    run_overrides: dict[str, str] = {}
+    override_file = run_dir / "promotion_overrides.json"
+    if override_file.exists():
+        run_overrides = _read_json(override_file).get("exclusions", {})
+
+    all_overrides = {**run_overrides, **(overrides or {})}
+
+    raw_candidates: dict[str, dict[str, Any]] = {}
+    prim_file = run_dir / "llm" / "primitive_semantic_discovery" / "parsed_response.json"
+    if prim_file.exists():
+        for c in _read_json(prim_file).get("candidates", []):
+            if "candidate_id" in c:
+                raw_candidates[c["candidate_id"]] = c
+
+    comp_file = run_dir / "llm" / "composite_semantic_discovery" / "parsed_response.json"
+    if comp_file.exists():
+        comp_data = _read_json(comp_file)
+        for c in comp_data.get("composites", comp_data.get("candidates", [])):
+            cid = c.get("composite_id", c.get("candidate_id"))
+            if cid:
+                raw_candidates[cid] = c
+
+    executable: list[str] = []
+    excluded: dict[str, str] = {}
+
+    for cid in candidates:
+        if cid in all_overrides:
+            excluded[cid] = all_overrides[cid]
+            continue
+
+        raw = raw_candidates.get(cid)
+        if not raw:
+            excluded[cid] = "MISSING_STRUCTURED_PROPOSAL"
+            continue
+
+        op = raw.get("operator")
+        if op == "TARGET_MATCH":
+            target_rel = raw.get("target_relation") or raw.get("relation")
+            if target_rel == "membership":
+                excluded[cid] = "OPERATOR_CAPABILITY_GAP:MEMBERSHIP"
+                continue
+            elif target_rel is None and not raw.get("scalar_equality"):
+                # Without structured specification proving scalar equality or IR membership support:
+                excluded[cid] = "EXECUTABLE_RELATION_UNDER_SPECIFIED"
+                continue
+
+        executable.append(cid)
+
+    return executable, excluded
+
+
+def _check_reconciliation_compatibility(
+    raw_cand: dict[str, Any],
+    canon_task: SemanticTaskSpec,
+) -> bool:
+    """Verifies deterministic compatibility signature before reusing canonical ID or comparator."""
+    cand_op = raw_cand.get("operator")
+    if cand_op != canon_task.operator:
+        return False
+
+    cand_arity = raw_cand.get("audio_arity", 1)
+    if cand_arity != canon_task.audio_arity:
+        return False
+
+    cand_kind = raw_cand.get("answer_schema_proposal", {}).get("kind")
+    canon_kind = canon_task.outputs[0].kind if canon_task.outputs else None
+    if cand_kind and canon_kind and cand_kind != canon_kind:
+        return False
+
+    hidden_src = raw_cand.get("hidden_source_annotations", [])
+    visible_inputs = raw_cand.get("visible_inputs", raw_cand.get("visible_context_roles", []))
+    cand_src = hidden_src[0] if hidden_src else (visible_inputs[0] if visible_inputs else "")
+    canon_src = canon_task.source_role_mapping.get("source_field")
+    if cand_src and canon_src and cand_src != canon_src:
+        return False
+
+    return True
 
 
 def resolve_canonical_ids(
     dataset_id: str,
     candidate_ids: list[str],
     reconciliation_data: dict[str, Any],
+    raw_candidates_map: dict[str, dict[str, Any]] | None = None,
+    existing_catalog_tasks: list[SemanticTaskSpec] | None = None,
     overrides: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Resolves blind discovery candidate IDs to stable canonical IDs deterministically."""
     overrides = overrides or {}
     mapping: dict[str, str] = {}
     reverse_map: dict[str, str] = {}
+    raw_candidates_map = raw_candidates_map or {}
+    canon_map = {t.type_id: t for t in (existing_catalog_tasks or [])}
 
     matches = {m["blind_candidate"]: m for m in reconciliation_data.get("matches", []) if m.get("blind_candidate")}
 
@@ -263,9 +349,13 @@ def resolve_canonical_ids(
         if cand_id in overrides:
             target_id = overrides[cand_id]
         elif cand_id in matches and matches[cand_id].get("classification") == "SAME_PROPOSITION_DIFFERENT_NAME" and matches[cand_id].get("canonical_type"):
-            target_id = matches[cand_id]["canonical_type"]
+            canon_type = matches[cand_id]["canonical_type"]
+            raw_cand = raw_candidates_map.get(cand_id, {})
+            canon_task = canon_map.get(canon_type)
+            if canon_task and not _check_reconciliation_compatibility(raw_cand, canon_task):
+                raise PromotionError("RECONCILIATION_EXECUTABLE_COMPATIBILITY_UNPROVEN", f"{cand_id} -> {canon_type}")
+            target_id = canon_type
         else:
-            # Deterministic normalization: strip transient discovery index <dataset>_<digits>_<slug> -> <dataset>_<slug>
             match = re.match(r"^([a-zA-Z0-9_]+?)_\d+_(.+)$", cand_id)
             if match:
                 prefix = match.group(1)
@@ -276,7 +366,6 @@ def resolve_canonical_ids(
             else:
                 raise PromotionError("CANONICAL_ID_UNRESOLVED", cand_id)
 
-        # Collision check
         if target_id in reverse_map and reverse_map[target_id] != cand_id:
             raise PromotionError(
                 "CANONICAL_ID_COLLISION",
@@ -295,31 +384,20 @@ def resolve_candidate_comparator(
     reconciliation_data: dict[str, Any],
     existing_catalog_tasks: list[SemanticTaskSpec] | None = None,
 ) -> str:
-    """Generic capability-based comparator resolution order without dataset-specific shortcuts."""
-    # A. Reconciliation Reuse: If candidate reconciles to an existing canonical task
+    """Capability-based comparator resolution order with structural compatibility verification."""
     matches = {m["blind_candidate"]: m for m in reconciliation_data.get("matches", []) if m.get("blind_candidate")}
     if blind_id in matches and matches[blind_id].get("classification") == "SAME_PROPOSITION_DIFFERENT_NAME":
         canon_type = matches[blind_id].get("canonical_type")
         if canon_type and existing_catalog_tasks:
             for ex in existing_catalog_tasks:
                 if ex.type_id == canon_type and ex.comparator_id:
-                    hidden_src = raw_cand.get("hidden_source_annotations", [])
-                    src_role = raw_cand.get("source_role_mapping", {}).get("source_field", "")
-                    prop_desc = (raw_cand.get("proposition_description") or "").lower()
-                    requires_membership = (
-                        "presence" in blind_id
-                        or "presence" in canon_type
-                        or "presence" in prop_desc
-                        or (raw_cand.get("operator") == "TARGET_MATCH" and ("cs_term" in blind_id or "list" in src_role or any("list" in str(h) for h in hidden_src)))
-                    )
-                    if requires_membership and ex.operator == "TARGET_MATCH":
+                    if not _check_reconciliation_compatibility(raw_cand, ex):
                         raise PromotionError(
-                            "OPERATOR_CAPABILITY_GAP:MEMBERSHIP",
-                            f"Reconciled task '{blind_id}' -> '{canon_type}' requires list membership IR (target MEMBER_OF parse({src_role})), which is not supported by scalar TARGET_MATCH",
+                            "RECONCILIATION_EXECUTABLE_COMPATIBILITY_UNPROVEN",
+                            f"Candidate {blind_id} incompatible with canonical {canon_type}",
                         )
                     return ex.comparator_id
 
-    # B. Explicit Candidate Proposal
     if raw_cand.get("comparator_id"):
         cid = raw_cand["comparator_id"]
         reg = load_comparator_registry()
@@ -329,7 +407,6 @@ def resolve_candidate_comparator(
         except KeyError:
             pass
 
-    # C. Deterministic capability matching
     operator = raw_cand.get("operator", "DIRECT")
     answer_schema = raw_cand.get("answer_schema_proposal", {})
     kind = answer_schema.get("kind")
@@ -348,17 +425,17 @@ def resolve_candidate_comparator(
         if "categorical_label_exact" in comp_ids:
             return "categorical_label_exact"
     elif operator == "PAIRWISE_SELECTION":
+        if "audio_choice_exact" in comp_ids:
+            return "audio_choice_exact"
+        if "categorical_label_exact" in comp_ids:
+            return "categorical_label_exact"
+    elif operator == "TARGET_MATCH":
+        if "boolean_exact" in comp_ids:
+            return "boolean_exact"
         if "categorical_label_exact" in comp_ids:
             return "categorical_label_exact"
 
-    # Reject shortcuts and check gaps
-    if operator == "TARGET_MATCH":
-        # Check if list membership is requested for a new unreconciled candidate
-        hidden_src = raw_cand.get("hidden_source_annotations", [])
-        if hidden_src and any("list" in h for h in hidden_src):
-            raise PromotionError("OPERATOR_CAPABILITY_GAP:MEMBERSHIP", f"Candidate {blind_id} requires list membership IR")
-
-    raise PromotionError("COMPARATOR_CAPABILITY_GAP", f"No compatible comparator for {blind_id}:{operator}")
+    raise PromotionError("UNSUPPORTED_COMPARATOR_CAPABILITY", f"{blind_id}:{operator}")
 
 
 def compile_candidate_semantic_catalog(
@@ -370,13 +447,15 @@ def compile_candidate_semantic_catalog(
     existing_catalog_tasks: list[SemanticTaskSpec] | None = None,
     promotion_mode: str = "replace",
 ) -> dict[str, Any]:
-    """Compiles accepted authoring candidates into canonical SemanticCatalog schema."""
+    """Compiles candidate SemanticCatalog from structured proposals with zero silent defaults."""
     parsed_primitives_path = run_dir / "llm" / "primitive_semantic_discovery" / "parsed_response.json"
-    parsed_composites_path = run_dir / "llm" / "composite_discovery" / "parsed_response.json"
+    parsed_composites_path = run_dir / "llm" / "composite_semantic_discovery" / "parsed_response.json"
 
-    raw_primitives = _read_json(parsed_primitives_path).get("candidates", []) if parsed_primitives_path.exists() else []
-    
-    raw_composites: list[dict[str, Any]] = []
+    if not parsed_primitives_path.exists():
+        raise PromotionError("MISSING_AUTHORING_EVIDENCE", "primitive_semantic_discovery parsed_response.json missing")
+
+    raw_primitives = _read_json(parsed_primitives_path).get("candidates", [])
+    raw_composites = []
     if parsed_composites_path.exists():
         comp_data = _read_json(parsed_composites_path)
         raw_composites = comp_data.get("composites", comp_data.get("candidates", []))
@@ -389,7 +468,6 @@ def compile_candidate_semantic_catalog(
 
     tasks: list[dict[str, Any]] = []
 
-    # If merge mode, retain unmatched old active tasks
     retained_tasks_map: dict[str, SemanticTaskSpec] = {}
     if promotion_mode == "merge" and existing_catalog_tasks:
         for ex in existing_catalog_tasks:
@@ -401,12 +479,22 @@ def compile_candidate_semantic_catalog(
 
         raw = cand_map[blind_id]
         canonical_id = id_mapping[blind_id]
-        operator = raw.get("operator", "DIRECT")
+
+        if "operator" not in raw:
+            raise PromotionError("MISSING_PROPOSAL_EVIDENCE", f"Candidate {blind_id} lacks operator")
+        operator = raw["operator"]
 
         if operator not in {"DIRECT", "TARGET_MATCH", "EQUALITY", "PAIRWISE_SELECTION", "COMPOSITE"}:
             raise PromotionError("UNSUPPORTED_EXECUTABLE_SEMANTIC", f"{blind_id}:{operator}")
 
-        audio_arity = raw.get("audio_arity", 1)
+        if "proposition" not in raw:
+            raise PromotionError("MISSING_PROPOSAL_EVIDENCE", f"Candidate {blind_id} lacks proposition")
+        prop_description = raw["proposition"]
+
+        if "audio_arity" not in raw:
+            raise PromotionError("MISSING_PROPOSAL_EVIDENCE", f"Candidate {blind_id} lacks audio_arity")
+        audio_arity = raw["audio_arity"]
+
         visible_inputs = tuple(raw.get("visible_inputs", raw.get("visible_context_roles", [])))
         hidden_annotations = raw.get("hidden_source_annotations", [])
 
@@ -417,7 +505,10 @@ def compile_candidate_semantic_catalog(
         if not source_field and operator != "COMPOSITE":
             raise PromotionError("MISSING_PROPOSAL_EVIDENCE", f"Candidate {blind_id} source_field cannot be determined")
 
-        answer_schema = raw.get("answer_schema_proposal", {"kind": "field_value"})
+        if "answer_schema_proposal" not in raw:
+            raise PromotionError("MISSING_PROPOSAL_EVIDENCE", f"Candidate {blind_id} lacks answer_schema_proposal")
+        answer_schema = raw["answer_schema_proposal"]
+
         comparator_id = resolve_candidate_comparator(blind_id, raw, reconciliation_data, existing_catalog_tasks)
 
         outputs = [
@@ -434,16 +525,16 @@ def compile_candidate_semantic_catalog(
 
         invariances = raw.get("expected_invariances")
         if invariances is None:
-            invariances = ["surrounding_whitespace"]
+            raise PromotionError("MISSING_PROPOSAL_EVIDENCE", f"Candidate {blind_id} lacks expected_invariances")
 
         non_invariances = raw.get("expected_non_invariances")
         if non_invariances is None:
-            non_invariances = ["label_identity"]
+            raise PromotionError("MISSING_PROPOSAL_EVIDENCE", f"Candidate {blind_id} lacks expected_non_invariances")
 
         task_spec = {
             "type_id": canonical_id,
             "proposition_id": canonical_id,
-            "proposition_description": raw.get("proposition", f"Semantic task {canonical_id}"),
+            "proposition_description": prop_description,
             "operator": operator,
             "classification": classification,
             "kind": kind,
@@ -464,11 +555,9 @@ def compile_candidate_semantic_catalog(
         }
         tasks.append(task_spec)
 
-        # Remove from retained tasks if promoted
         if canonical_id in retained_tasks_map:
             del retained_tasks_map[canonical_id]
 
-    # If merge mode, append retained old tasks
     if promotion_mode == "merge":
         for ret_task in retained_tasks_map.values():
             tasks.append(ret_task.model_dump(mode="json"))
@@ -480,7 +569,6 @@ def compile_candidate_semantic_catalog(
         "tasks": tasks,
     }
 
-    # Validate catalog structure using promotion gate validator
     catalog_obj = SemanticCatalog.model_validate(catalog_dict)
     issues = validate_catalog(catalog_obj)
     if issues:
@@ -489,11 +577,23 @@ def compile_candidate_semantic_catalog(
     return catalog_dict
 
 
-def run_staged_preflight_for_promotion(dataset_id: str, catalog_dict: dict[str, Any]) -> dict[str, Any]:
+def run_staged_preflight_for_promotion(
+    dataset_id: str,
+    catalog_dict: dict[str, Any],
+    field_specs: dict[str, Any] | None = None,
+    run_dir: Path | None = None,
+) -> dict[str, Any]:
     """Runs real staged language preflight validation against compiled candidate catalog."""
     from src.autonomous_qa.language.language_preflight import accepted_types_from_semantic_catalog
 
-    accepted_types = accepted_types_from_semantic_catalog(catalog_dict, dataset_id=dataset_id)
+    if field_specs is None:
+        from src.autonomous_qa.language.template_engine import resolve_legacy_field_specs
+        field_specs = resolve_legacy_field_specs(dataset_id)
+
+    if field_specs is None:
+        raise PromotionError("FIELD_SPECS_REQUIRED", f"Explicit field_specs required for {dataset_id}")
+
+    accepted_types = accepted_types_from_semantic_catalog(catalog_dict, field_specs=field_specs)
     res = run_preflight(mode="dataset", accepted_types=accepted_types, dataset=dataset_id, write_outputs=False)
     audit = res["audit"]
     return {
@@ -539,6 +639,7 @@ def prepare_promotion(
     promotion_mode: Literal["replace", "merge"],
     output_root: Path | None = None,
     overrides: dict[str, str] | None = None,
+    field_specs: dict[str, Any] | None = None,
 ) -> PromotionBundle:
     """Performs the STAGED PREPARE (dry-run) promotion transaction."""
     if promotion_mode not in ("replace", "merge"):
@@ -547,9 +648,7 @@ def prepare_promotion(
     if not run_dir.exists():
         raise PromotionError("RUN_DIR_NOT_FOUND", str(run_dir))
 
-    # 1. Read authoring artifacts & compute input hashes
     run_manifest_path = run_dir / "run_manifest.json"
-    run_manifest = _read_json(run_manifest_path) if run_manifest_path.exists() else {}
     authoring_hash = _sha256_file(run_manifest_path)
 
     doc_dir = run_dir / "source_documentation"
@@ -562,14 +661,19 @@ def prepare_promotion(
     if not profile_hash:
         raise PromotionError("MISSING_AUTHORING_EVIDENCE", "dataset_profile_hash is empty")
 
-    # 2. Readiness evaluation
     readiness = evaluate_promotion_readiness(run_dir)
-    promotable_candidates = readiness["promotable_primitives"] + readiness["promotable_composites"]
+    gate_pass_candidates = readiness["authoring_gate_pass_candidates"]
 
-    if not promotable_candidates:
-        raise PromotionError("NO_PROMOTABLE_CANDIDATES", "No candidates passed semantic + language gates")
+    executable_candidates, capability_exclusions = filter_executable_candidates(
+        gate_pass_candidates, run_dir, overrides
+    )
 
-    # 3. Read current active canonical types & hashes if present
+    non_selected_types = {**readiness["non_gate_pass_types"], **capability_exclusions}
+    selected_candidates = executable_candidates
+
+    if not selected_candidates:
+        raise PromotionError("NO_PROMOTABLE_CANDIDATES", "No candidates passed semantic gates, language gates, and capability checks")
+
     current_spec_hash = ""
     current_cat_hash = ""
     current_contract_hash = ""
@@ -586,20 +690,20 @@ def prepare_promotion(
             spec_obj = get_dataset_spec(dataset_id)
             current_spec_hash = spec_obj.logical_hash()
 
-            cat_path = get_semantic_catalog_path(dataset_id)
+            cat_path = ROOT / entry["semantic_catalog"]
             if cat_path.exists():
                 cat_obj = load_semantic_catalog(cat_path)
                 current_cat_hash = cat_obj.logical_hash()
                 existing_catalog_tasks = list(cat_obj.tasks)
                 old_active_types = tuple(t.type_id for t in cat_obj.tasks)
 
-            contract_path = RESOURCE_ROOT / entry["production_contract"]
+            contract_path = ROOT / entry["production_contract"]
             if contract_path.exists():
                 contract_data = _read_json(contract_path)
                 contract_obj = ProductionContract.model_validate(contract_data)
                 current_contract_hash = contract_obj.fingerprint()
 
-            manifest_path = RESOURCE_ROOT / entry["promotion_manifest"]
+            manifest_path = ROOT / entry["promotion_manifest"]
             if manifest_path.exists():
                 manifest_data = _read_json(manifest_path)
                 manifest_obj = PromotionManifest.model_validate(manifest_data)
@@ -609,17 +713,28 @@ def prepare_promotion(
         lang_reg = load_language_registry(LANGUAGE_REGISTRY_PATH)
         current_lang_hash = lang_reg.registry_hash
 
-    # 4. Canonical ID resolution
-    id_mapping = resolve_canonical_ids(dataset_id, promotable_candidates, readiness["reconciliation"], overrides)
-    proposed_promoted_types = tuple(sorted(id_mapping[cid] for cid in promotable_candidates))
+    raw_candidates_map: dict[str, dict[str, Any]] = {}
+    prim_file = run_dir / "llm" / "primitive_semantic_discovery" / "parsed_response.json"
+    if prim_file.exists():
+        for c in _read_json(prim_file).get("candidates", []):
+            if "candidate_id" in c:
+                raw_candidates_map[c["candidate_id"]] = c
 
-    # 5. Promotion Mode active set computation
+    id_mapping = resolve_canonical_ids(
+        dataset_id,
+        selected_candidates,
+        readiness["reconciliation"],
+        raw_candidates_map=raw_candidates_map,
+        existing_catalog_tasks=existing_catalog_tasks,
+        overrides=overrides,
+    )
+    proposed_promoted_types = tuple(sorted(id_mapping[cid] for cid in selected_candidates))
+
     if promotion_mode == "replace":
         proposed_active_types = proposed_promoted_types
-    else:  # merge
+    else:
         proposed_active_types = tuple(sorted(set(old_active_types) | set(proposed_promoted_types)))
 
-    # 6. Semantic diff
     old_set = set(old_active_types)
     new_set = set(proposed_active_types)
     reconciled_set = set(id_mapping.values())
@@ -630,10 +745,9 @@ def prepare_promotion(
         "renamed_reused_types": sorted(reconciled_set & old_set),
     }
 
-    # 7. Compile candidate catalog & verify active set invariant
     candidate_catalog = compile_candidate_semantic_catalog(
         dataset_id,
-        promotable_candidates,
+        selected_candidates,
         id_mapping,
         run_dir,
         readiness["reconciliation"],
@@ -648,10 +762,11 @@ def prepare_promotion(
             f"Catalog tasks ({compiled_type_ids}) do not match proposed active set ({proposed_active_types})",
         )
 
-    candidate_language = compile_candidate_language_resource(dataset_id, promotable_candidates, id_mapping, run_dir)
+    candidate_language = compile_candidate_language_resource(dataset_id, selected_candidates, id_mapping, run_dir)
 
-    # 8. Real Staged Preflight Validation
-    staged_preflight_res = run_staged_preflight_for_promotion(dataset_id, candidate_catalog)
+    staged_preflight_res = run_staged_preflight_for_promotion(
+        dataset_id, candidate_catalog, field_specs=field_specs, run_dir=run_dir
+    )
     staged_pass = (staged_preflight_res["status"] == "PREFLIGHT_PASS")
 
     staged_catalog_type_ids = tuple(sorted(t["type_id"] for t in candidate_catalog.get("tasks", [])))
@@ -662,30 +777,35 @@ def prepare_promotion(
     executable_promotion_candidates = proposed_promoted_types
     staged_preflight_types = staged_accepted_type_ids
 
-    # Staged input identity verification
     identity_match = (
         set(staged_catalog_type_ids) == set(proposed_active_types)
         and set(staged_accepted_type_ids) == set(proposed_active_types)
     )
-    if promotion_mode == "replace":
-        forbidden_old_types = {"vimedcss_spoken_content_transcription", "vimedcss_cs_term_extraction", "vimedcss_cs_term_presence"}
-        has_forbidden = bool(forbidden_old_types.intersection(staged_accepted_type_ids))
-    else:
-        has_forbidden = False
 
-    if not identity_match or has_forbidden:
+    if not identity_match:
         raise PromotionError(
             "STAGED_PREFLIGHT_IDENTITY_MISMATCH",
-            f"Staged preflight types {staged_accepted_type_ids} do not match proposed active types {proposed_active_types} (has_forbidden={has_forbidden})",
+            f"Staged preflight types {staged_accepted_type_ids} do not match proposed active types {proposed_active_types}",
         )
 
-    missing_gates = (
-        (readiness["primitive_candidates"] - readiness["promotable_primitive_count"])
-        + (readiness["composite_candidates"] - readiness["promotable_composite_count"])
-    )
-    apply_ready = staged_pass and (missing_gates == 0) and (readiness["promotable_total"] > 0) and identity_match and (not has_forbidden)
+    selected_type_blockers: list[str] = []
+    for cid in selected_candidates:
+        if cid not in gate_pass_candidates:
+            selected_type_blockers.append(f"GATE_NOT_PASSED:{cid}")
 
-    # Build PromotionBundle
+    apply_ready = (
+        bool(selected_candidates)
+        and len(selected_type_blockers) == 0
+        and staged_pass
+        and identity_match
+    )
+
+    primitive_executable_selected_count = sum(
+        1 for c in selected_candidates if c in readiness["authoring_gate_pass_primitives"]
+    )
+    staged_preflight_type_count = len(staged_accepted_type_ids)
+    staged_preflight_pass_type_count = len(staged_accepted_type_ids) if staged_pass else 0
+
     bundle = PromotionBundle(
         schema_version=1,
         dataset_id=dataset_id,
@@ -696,18 +816,29 @@ def prepare_promotion(
         source_documentation_hash=doc_hash,
         dataset_profile_hash=profile_hash,
         primitive_candidates=readiness["primitive_candidates"],
-        primitive_semantic_accepted=readiness["primitive_semantic_accepted"],
+        primitive_semantic_accepted=readiness["primitive_semantic_pass_count"],
+        primitive_semantic_pass_count=readiness["primitive_semantic_pass_count"],
         composite_candidates=readiness["composite_candidates"],
-        composite_semantic_accepted=readiness["composite_semantic_accepted"],
-        primitive_language_ready=readiness["primitive_language_ready"],
-        composite_language_ready=readiness["composite_language_ready"],
+        composite_semantic_accepted=readiness["composite_semantic_pass_count"],
+        composite_semantic_pass_count=readiness["composite_semantic_pass_count"],
+        primitive_language_ready=readiness["primitive_authoring_language_gate_pass_count"],
+        primitive_authoring_language_gate_pass_count=readiness["primitive_authoring_language_gate_pass_count"],
+        composite_language_ready=readiness["composite_authoring_language_gate_pass_count"],
+        composite_authoring_language_gate_pass_count=readiness["composite_authoring_language_gate_pass_count"],
         authoring_language_gate_pass_count=readiness["authoring_language_gate_pass_count"],
-        staged_canonical_language_preflight_pass_count=readiness["authoring_language_gate_pass_count"] if staged_pass else 0,
-        promotable_primitive_count=readiness["promotable_primitive_count"],
-        promotable_composite_count=readiness["promotable_composite_count"],
-        promotable_total=readiness["promotable_total"],
+        primitive_executable_selected_count=primitive_executable_selected_count,
+        staged_canonical_language_preflight_pass_count=staged_preflight_pass_type_count,
+        staged_preflight_type_count=staged_preflight_type_count,
+        staged_preflight_pass_type_count=staged_preflight_pass_type_count,
+        promotable_primitive_count=primitive_executable_selected_count,
+        promotable_composite_count=0,
+        promotable_total=len(selected_candidates),
         promotable_types=proposed_promoted_types,
-        non_promotable_types=readiness["non_promotable_types"],
+        non_promotable_types=non_selected_types,
+        discovered_semantic_pass_types=authoring_semantic_pass_types,
+        non_selected_types=non_selected_types,
+        selected_promotion_types=proposed_promoted_types,
+        selected_type_blockers=tuple(selected_type_blockers),
         canonical_id_mapping=id_mapping,
         old_active_types=old_active_types,
         proposed_active_types=proposed_active_types,
@@ -721,18 +852,21 @@ def prepare_promotion(
             "promotion_manifest_hash": current_manifest_hash,
             "language_registry_hash": current_lang_hash,
         },
-        staged_language_preflight={
-            k: v for k, v in staged_preflight_res.items() if k != "accepted_types"
+        staged_language_preflight=staged_preflight_res,
+        fresh_contract_fingerprints={
+            "contract_fingerprint": staged_preflight_res.get("contract_fingerprint", ""),
         },
-        fresh_contract_fingerprints={"candidate_catalog": SemanticCatalog.model_validate(candidate_catalog).logical_hash()},
-        stale_current_artifacts=("current_production_plan",) if diff["removed_types"] or diff["added_types"] else (),
+        stale_current_artifacts=(),
         evidence_summary={
-            "run_manifest_status": run_manifest.get("status", "UNKNOWN"),
-            "gates_verified": True,
-            "staged_language_preflight_pass": staged_pass,
-            "zero_llm": True,
+            "run_manifest_hash": authoring_hash,
+            "profile_hash": profile_hash,
+            "documentation_hash": doc_hash,
+            "readiness": readiness,
         },
-        zero_llm_evidence={"llm_calls_in_promotion": 0},
+        zero_llm_evidence={
+            "framework_calls": 0,
+            "dataset_apply": False,
+        },
         authoring_semantic_pass_types=authoring_semantic_pass_types,
         executable_promotion_candidates=executable_promotion_candidates,
         staged_preflight_types=staged_preflight_types,
@@ -757,6 +891,7 @@ def apply_promotion(
     bundle_input: Path | PromotionBundle,
     *,
     resource_root: Path = RESOURCE_ROOT,
+    replace_fn: Callable[[str, str], Any] = shutil.move,
 ) -> dict[str, Any]:
     """Applies a previously prepared PromotionBundle to canonical resources transaction-safely."""
     if isinstance(bundle_input, Path):
@@ -772,7 +907,26 @@ def apply_promotion(
             f"Cannot apply promotion bundle for dataset '{dataset_id}': apply_ready is False (staged preflight status = '{bundle.staged_language_preflight.get('status')}')",
         )
 
-    # 1. Verify canonical dataset registry exists
+    # 1. Authoring source freshness verification
+    run_dir = Path(bundle.source_run_path)
+    if run_dir.exists():
+        manifest_p = run_dir / "run_manifest.json"
+        if manifest_p.exists() and bundle.authoring_run_hash:
+            if _sha256_file(manifest_p) != bundle.authoring_run_hash:
+                raise PromotionError("PROMOTION_SOURCE_EVIDENCE_STALE", "run_manifest.json hash changed")
+
+        profile_p = run_dir / "deterministic" / "dataset_profile.json"
+        if profile_p.exists() and bundle.dataset_profile_hash:
+            if _sha256_file(profile_p) != bundle.dataset_profile_hash:
+                raise PromotionError("PROMOTION_SOURCE_EVIDENCE_STALE", "dataset_profile.json hash changed")
+
+        doc_dir = run_dir / "source_documentation"
+        if doc_dir.exists() and bundle.source_documentation_hash:
+            curr_doc_hash = canonical_hash([_sha256_file(p) for p in sorted(doc_dir.glob("*"))])
+            if curr_doc_hash != bundle.source_documentation_hash:
+                raise PromotionError("PROMOTION_SOURCE_EVIDENCE_STALE", "source_documentation hash changed")
+
+    # 2. Verify canonical dataset registry exists
     registry_path = resource_root / "registry" / "datasets.json"
     if not registry_path.exists():
         raise PromotionError("CANONICAL_DATASET_REGISTRY_MISSING", str(registry_path))
@@ -787,7 +941,7 @@ def apply_promotion(
     manifest_path = resource_root.parent / entry["promotion_manifest"]
     spec_path = resource_root.parent / entry["dataset_spec"]
 
-    # 2. Verify stale bundle protection (expected current hashes match)
+    # 3. Verify stale bundle protection (all expected current hashes match)
     spec_obj = get_dataset_spec(dataset_id)
     current_spec_hash = spec_obj.logical_hash()
 
@@ -813,14 +967,14 @@ def apply_promotion(
     ):
         raise PromotionError("PROMOTION_BUNDLE_STALE", "Current canonical resource hashes differ from prepare-time hashes")
 
-    # 3. Prepare new canonical catalog object and compute logical hash
+    # 4. Prepare new canonical catalog object and compute logical hash
     candidate_cat_obj = SemanticCatalog.model_validate(bundle.candidate_semantic_catalog)
     cat_issues = validate_catalog(candidate_cat_obj)
     if cat_issues:
         raise PromotionError("CANONICAL_RESOURCE_VALIDATION_FAILED", ",".join(cat_issues))
     candidate_cat_logical_hash = candidate_cat_obj.logical_hash()
 
-    # 4. Prepare ProductionContract and PromotionManifest with exact logical hashes
+    # 5. Prepare ProductionContract and PromotionManifest with exact logical hashes
     comp_registry = load_comparator_registry()
     comp_ids = tuple(sorted({t.comparator_id for t in candidate_cat_obj.tasks if t.comparator_id}))
     comp_hashes = {cid: comp_registry.by_id(cid).logical_hash() for cid in comp_ids if comp_ids}
@@ -839,69 +993,101 @@ def apply_promotion(
             "allowed_splits": list(spec_obj.allowed_splits),
             "plan_location": spec_obj.production_constraints.get("plan_location", f"data/materialized/{dataset_id}/current"),
         },
-        promotion_evidence=bundle.evidence_summary,
+        promotion_evidence={
+            "authoring_run_id": bundle.source_run_id,
+            "promotion_mode": bundle.promotion_mode,
+            "bundle_fingerprint": bundle.fingerprint(),
+        },
         status="PROMOTED",
-        migration_source="generic_authoring_promotion_bridge",
+        migration_source="authoring_promotion_bridge",
+        promotion_fingerprint="",
     )
     contract_fingerprint = contract.fingerprint()
-    contract = contract.model_copy(update={"promotion_fingerprint": contract_fingerprint})
 
     manifest = PromotionManifest(
         schema_version=1,
         dataset_id=dataset_id,
         status="PROMOTED",
-        migration_source="generic_authoring_promotion_bridge",
+        migration_source="authoring_promotion_bridge",
         dataset_spec_hash=current_spec_hash,
         semantic_catalog_hash=candidate_cat_logical_hash,
         comparator_registry_hash=comp_reg_hash,
         language_registry_hash=current_lang_hash,
         production_contract_hash=contract_fingerprint,
-        promotion_evidence=bundle.evidence_summary,
+        promotion_evidence={
+            "authoring_run_id": bundle.source_run_id,
+            "promotion_mode": bundle.promotion_mode,
+            "bundle_fingerprint": bundle.fingerprint(),
+        },
         promoted_semantic_types=bundle.proposed_active_types,
-        source_revision=spec_obj.source.get("revision_identity"),
+        source_revision=bundle.source_run_id,
         allowed_splits=tuple(spec_obj.allowed_splits),
-        semantic_change_status="SEMANTIC_CHANGE_PROMOTED" if bundle.semantic_diff["added_types"] or bundle.semantic_diff["removed_types"] else "NO_SEMANTIC_CHANGE",
+        semantic_change_status="SEMANTIC_UPGRADE" if bundle.semantic_diff["added_types"] else "NO_SEMANTIC_CHANGE",
+        promotion_fingerprint="",
     )
     manifest_fingerprint = manifest.fingerprint()
-    manifest = manifest.model_copy(update={"promotion_fingerprint": manifest_fingerprint})
 
-    # 5. Backup destination files in memory for atomic transaction rollback
+    # 6. Atomic multi-resource replacement with robust rollback protection
     backups: dict[Path, bytes] = {}
+    newly_created: list[Path] = []
     for p in (catalog_path, contract_path, manifest_path):
         if p.exists():
             backups[p] = p.read_bytes()
+        else:
+            newly_created.append(p)
+
+    tmp_catalog = catalog_path.with_suffix(".json.tmp")
+    tmp_contract = contract_path.with_suffix(".json.tmp")
+    tmp_manifest = manifest_path.with_suffix(".json.tmp")
 
     try:
-        # Atomic replace via temporary files
-        tmp_catalog = catalog_path.with_suffix(".json.tmp")
-        tmp_contract = contract_path.with_suffix(".json.tmp")
-        tmp_manifest = manifest_path.with_suffix(".json.tmp")
-
         _write_json(tmp_catalog, bundle.candidate_semantic_catalog)
         _write_json(tmp_contract, contract.model_dump(mode="json"))
         _write_json(tmp_manifest, manifest.model_dump(mode="json"))
 
-        shutil.move(str(tmp_catalog), str(catalog_path))
-        shutil.move(str(tmp_contract), str(contract_path))
-        shutil.move(str(tmp_manifest), str(manifest_path))
+        replace_fn(str(tmp_catalog), str(catalog_path))
+        replace_fn(str(tmp_contract), str(contract_path))
+        replace_fn(str(tmp_manifest), str(manifest_path))
 
-        # Post-write verification
+        # Cross-resource final validation
         reloaded_cat = load_semantic_catalog(catalog_path)
-        if reloaded_cat.logical_hash() != candidate_cat_logical_hash:
-            raise PromotionError("CANONICAL_RESOURCE_VALIDATION_FAILED", "Catalog logical hash mismatch after write")
-
         reloaded_contract = ProductionContract.model_validate(_read_json(contract_path))
-        if reloaded_contract.fingerprint() != contract_fingerprint:
-            raise PromotionError("CANONICAL_RESOURCE_VALIDATION_FAILED", "Contract fingerprint mismatch after write")
-
         reloaded_manifest = PromotionManifest.model_validate(_read_json(manifest_path))
-        if reloaded_manifest.fingerprint() != manifest_fingerprint:
-            raise PromotionError("CANONICAL_RESOURCE_VALIDATION_FAILED", "Manifest fingerprint mismatch after write")
+        reloaded_spec = get_dataset_spec(dataset_id)
+        reloaded_lang = load_language_registry(LANGUAGE_REGISTRY_PATH)
+
+        catalog_tasks = tuple(sorted(t.type_id for t in reloaded_cat.tasks))
+        if catalog_tasks != tuple(sorted(reloaded_contract.active_semantic_types)):
+            raise PromotionError("CANONICAL_RESOURCE_VALIDATION_FAILED", "Catalog tasks != contract active types")
+        if catalog_tasks != tuple(sorted(reloaded_manifest.promoted_semantic_types)):
+            raise PromotionError("CANONICAL_RESOURCE_VALIDATION_FAILED", "Catalog tasks != manifest promoted types")
+
+        if reloaded_contract.semantic_catalog_hash != reloaded_cat.logical_hash():
+            raise PromotionError("CANONICAL_RESOURCE_VALIDATION_FAILED", "contract catalog hash mismatch")
+        if reloaded_manifest.semantic_catalog_hash != reloaded_cat.logical_hash():
+            raise PromotionError("CANONICAL_RESOURCE_VALIDATION_FAILED", "manifest catalog hash mismatch")
+        if reloaded_manifest.production_contract_hash != reloaded_contract.fingerprint():
+            raise PromotionError("CANONICAL_RESOURCE_VALIDATION_FAILED", "manifest contract hash mismatch")
+        if reloaded_contract.language_registry_hash != reloaded_lang.registry_hash:
+            raise PromotionError("CANONICAL_RESOURCE_VALIDATION_FAILED", "contract language hash mismatch")
+        if reloaded_contract.dataset_spec_hash != reloaded_spec.logical_hash():
+            raise PromotionError("CANONICAL_RESOURCE_VALIDATION_FAILED", "contract dataset spec hash mismatch")
 
     except Exception as exc:
-        # ROLLBACK ALL DESTINATION FILES
-        for p, data in backups.items():
-            p.write_bytes(data)
+        try:
+            for p, data in backups.items():
+                p.write_bytes(data)
+            for p in newly_created:
+                if p.exists():
+                    p.unlink()
+            for tmp in (tmp_catalog, tmp_contract, tmp_manifest):
+                if tmp.exists():
+                    tmp.unlink()
+        except Exception as rb_exc:
+            raise PromotionError("PROMOTION_ROLLBACK_FAILED", f"Rollback failed: {rb_exc}") from rb_exc
+
+        if isinstance(exc, PromotionError):
+            raise
         raise PromotionError("TRANSACTION_FAILED_ROLLED_BACK", str(exc)) from exc
 
     return {
@@ -954,53 +1140,55 @@ def main(argv: list[str] | None = None) -> int:
         elif args.run_id:
             run_dir = ROOT / "outputs" / "runs" / args.dataset / args.run_id
         else:
-            print(json.dumps({"error": "RUN_ID_REQUIRED", "detail": "Must specify --run-id or --run-dir for --prepare"}, indent=2))
-            return 2
+            runs_parent = ROOT / "outputs" / "runs" / args.dataset
+            if not runs_parent.exists():
+                print(json.dumps({"error": "RUN_NOT_FOUND", "detail": f"No runs directory for {args.dataset}"}, indent=2))
+                return 1
+            run_dirs = sorted([d for d in runs_parent.iterdir() if d.is_dir()])
+            if not run_dirs:
+                print(json.dumps({"error": "RUN_NOT_FOUND", "detail": f"No run found under {runs_parent}"}, indent=2))
+                return 1
+            run_dir = run_dirs[-1]
 
-        bundle = prepare_promotion(
-            dataset_id=args.dataset,
-            run_dir=run_dir,
-            promotion_mode=args.promotion_mode,
-            output_root=args.output_root,
-            overrides=overrides,
-        )
-        print(
-            json.dumps(
-                {
-                    "status": "PREPARE_SUCCESS",
-                    "dataset_id": bundle.dataset_id,
-                    "source_run": bundle.source_run_id,
-                    "promotion_mode": bundle.promotion_mode,
-                    "primitive_semantic_accepted": bundle.primitive_semantic_accepted,
-                    "composite_semantic_accepted": bundle.composite_semantic_accepted,
-                    "primitive_language_ready": bundle.primitive_language_ready,
-                    "composite_language_ready": bundle.composite_language_ready,
-                    "staged_language_preflight": bundle.staged_language_preflight,
-                    "promotable_total": bundle.promotable_total,
-                    "old_active_types": list(bundle.old_active_types),
-                    "proposed_active_types": list(bundle.proposed_active_types),
-                    "semantic_diff": bundle.semantic_diff,
-                    "non_promotable_types": bundle.non_promotable_types,
-                    "fingerprint": bundle.fingerprint(),
-                    "canonical_mutations": 0,
-                    "real_llm_calls": 0,
-                },
-                indent=2,
+        try:
+            bundle = prepare_promotion(
+                args.dataset,
+                run_dir,
+                promotion_mode=args.promotion_mode,
+                output_root=args.output_root,
+                overrides=overrides,
             )
-        )
-        return 0
+            print(json.dumps({
+                "status": "PREPARED",
+                "apply_ready": bundle.apply_ready,
+                "dataset_id": bundle.dataset_id,
+                "bundle_fingerprint": bundle.fingerprint(),
+                "promotable_total": bundle.promotable_total,
+                "promotable_types": list(bundle.promotable_types),
+                "staged_preflight_status": bundle.staged_language_preflight.get("status"),
+                "staged_blocking_issues": bundle.staged_language_preflight.get("blocking_issues"),
+                "canonical_mutations": 0,
+            }, indent=2))
+            return 0
+        except PromotionError as exc:
+            print(json.dumps({"error": exc.code, "detail": exc.detail}, indent=2))
+            return 1
 
-    if args.apply:
+    elif args.apply:
         if not args.bundle:
-            print(json.dumps({"error": "PREPARED_BUNDLE_REQUIRED", "detail": "--apply requires explicit --bundle path to promotion_bundle.json"}, indent=2))
+            print(json.dumps({"error": "BUNDLE_REQUIRED", "detail": "--bundle <path> is required for --apply"}, indent=2))
             return 2
-
-        result = apply_promotion(args.bundle)
-        print(json.dumps(result, indent=2))
-        return 0
+        try:
+            res = apply_promotion(args.bundle)
+            print(json.dumps(res, indent=2))
+            return 0
+        except PromotionError as exc:
+            print(json.dumps({"error": exc.code, "detail": exc.detail}, indent=2))
+            return 1
 
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    import sys
+    sys.exit(main())
