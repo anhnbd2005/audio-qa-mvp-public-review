@@ -372,6 +372,93 @@ def test_certification_accepted_types_unavailable_fails_closed(tmp_path: Path):
     )
 
 
+def _pf(result, issues):
+    return {
+        "audit": {
+            "result": result,
+            "blocking_issue_count": sum(
+                1 for i in issues if i["severity"] == "BLOCKING"
+            ),
+        },
+        "issues": issues,
+    }
+
+
+def _iss(code, ds="toy_type", entry="e1", detail="d"):
+    return {
+        "issue_code": code,
+        "severity": "BLOCKING",
+        "dataset_type_id": ds,
+        "language_entry_id": entry,
+        "detail": detail,
+        "preflight_case_id": "case_depends_on_fingerprint",
+    }
+
+
+def _delta_with(monkeypatch, baseline_pf, promoted_pf):
+    import src.autonomous_qa.certification.language_registry_promotion as lrp
+
+    sequence = iter([baseline_pf, promoted_pf])
+    monkeypatch.setattr(lrp, "run_preflight", lambda **kwargs: next(sequence))
+    return lrp._dataset_delta(
+        "toy",
+        base_registry=None,
+        base_registry_path=Path("."),
+        promoted_registry=None,
+        promoted_registry_path=Path("."),
+        accepted=[],
+    )
+
+
+def test_issue_identity_counterexample(monkeypatch):
+    """Old count-difference logic returned 0 here; identity logic must catch D."""
+    baseline = _pf("LANGUAGE_CONTRACT_FAIL", [_iss("A"), _iss("B"), _iss("C")])
+    promoted = _pf("LANGUAGE_CONTRACT_FAIL", [_iss("D")])
+    result = _delta_with(monkeypatch, baseline, promoted)
+    assert result.baseline_blocking == 3
+    assert result.promoted_blocking == 1
+    assert result.new_blocking >= 1
+    assert result.passed is False
+    assert {i.issue_code for i in result.new_blocking_issues} == {"D"}
+
+
+def test_issue_identity_subset_allowed(monkeypatch):
+    baseline = _pf("LANGUAGE_CONTRACT_FAIL", [_iss("A"), _iss("B"), _iss("C")])
+    promoted = _pf("LANGUAGE_CONTRACT_FAIL", [_iss("A")])
+    result = _delta_with(monkeypatch, baseline, promoted)
+    assert result.new_blocking == 0
+    assert result.new_blocking_issues == ()
+    assert result.passed is True
+
+
+def test_issue_identity_mixed(monkeypatch):
+    baseline = _pf("LANGUAGE_CONTRACT_FAIL", [_iss("A"), _iss("B"), _iss("C")])
+    promoted = _pf("LANGUAGE_CONTRACT_FAIL", [_iss("A"), _iss("D")])
+    result = _delta_with(monkeypatch, baseline, promoted)
+    assert {i.issue_code for i in result.new_blocking_issues} == {"D"}
+    assert result.new_blocking == 1
+    assert result.passed is False
+
+
+def test_issue_identity_baseline_pass(monkeypatch):
+    ok = _pf("PREFLIGHT_PASS", [])
+    assert _delta_with(monkeypatch, ok, ok).passed is True
+    # baseline PASS but promoted introduces D -> FAIL
+    promoted = _pf("LANGUAGE_CONTRACT_FAIL", [_iss("D")])
+    result = _delta_with(monkeypatch, _pf("PREFLIGHT_PASS", []), promoted)
+    assert result.passed is False
+    assert {i.issue_code for i in result.new_blocking_issues} == {"D"}
+
+
+def test_issue_identity_ignores_preflight_case_id(monkeypatch):
+    # Same semantic identity, different case ids -> no new blocker.
+    baseline = _pf("LANGUAGE_CONTRACT_FAIL", [_iss("A")])
+    promoted = _pf("LANGUAGE_CONTRACT_FAIL", [_iss("A")])
+    promoted["issues"][0]["preflight_case_id"] = "different_case"
+    result = _delta_with(monkeypatch, baseline, promoted)
+    assert result.new_blocking == 0
+
+
 def test_invalid_resource_fails_closed(tmp_path: Path):
     tree = build_toy_tree(tmp_path)
     (tree["resource_root"] / "production" / "broken.json").write_text(

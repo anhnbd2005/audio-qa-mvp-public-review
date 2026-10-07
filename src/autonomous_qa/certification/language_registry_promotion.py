@@ -107,6 +107,50 @@ def _default_atomic_replace(src: str, dst: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+class BlockingIssueIdentity(BaseModel):
+    """Deterministic, stable identity for one blocking preflight issue.
+
+    Deliberately EXCLUDES ``preflight_case_id`` (registry/contract-fingerprint
+    dependent) and registry hashes/timestamps. ``detail`` is retained as part of
+    identity so distinct regressions with the same code are not collapsed.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    issue_code: str
+    dataset_type_id: str
+    language_entry_id: str
+    detail: str
+
+
+def _blocking_issue_identity_sort_key(identity: BlockingIssueIdentity) -> tuple[str, str, str, str]:
+    return (
+        identity.issue_code,
+        identity.dataset_type_id,
+        identity.language_entry_id,
+        identity.detail,
+    )
+
+
+def _blocking_issue_identities(
+    preflight_result: dict[str, Any],
+) -> frozenset[BlockingIssueIdentity]:
+    """Set of stable blocking-issue identities (semantic, not case multiplicity)."""
+    identities: set[BlockingIssueIdentity] = set()
+    for issue in preflight_result.get("issues", []):
+        if issue.get("severity") != "BLOCKING":
+            continue
+        identities.add(
+            BlockingIssueIdentity(
+                issue_code=str(issue.get("issue_code") or ""),
+                dataset_type_id=str(issue.get("dataset_type_id") or ""),
+                language_entry_id=str(issue.get("language_entry_id") or ""),
+                detail=str(issue.get("detail") or ""),
+            )
+        )
+    return frozenset(identities)
+
+
 class DatasetCertificationResult(BaseModel):
     """Generic per-dataset certification result. No dataset-specific fields."""
 
@@ -120,6 +164,9 @@ class DatasetCertificationResult(BaseModel):
     new_blocking: int
     require_pass: bool
     passed: bool
+    baseline_blocking_issues: tuple[BlockingIssueIdentity, ...] = ()
+    promoted_blocking_issues: tuple[BlockingIssueIdentity, ...] = ()
+    new_blocking_issues: tuple[BlockingIssueIdentity, ...] = ()
 
 
 class TargetCertificationResult(BaseModel):
@@ -328,7 +375,13 @@ def _dataset_delta(
     promoted_status = promoted["audit"]["result"]
     baseline_blocking = base["audit"]["blocking_issue_count"]
     promoted_blocking = promoted["audit"]["blocking_issue_count"]
-    new_blocking = max(0, promoted_blocking - baseline_blocking)
+
+    # Compare STABLE BLOCKING ISSUE IDENTITY, not aggregate counts. A promoted
+    # run with fewer blockers can still introduce a novel regression.
+    baseline_ids = _blocking_issue_identities(base)
+    promoted_ids = _blocking_issue_identities(promoted)
+    new_ids = promoted_ids - baseline_ids
+    new_blocking = len(new_ids)
     require_pass = baseline_status == "PREFLIGHT_PASS"
     passed = new_blocking == 0 and (
         promoted_status == "PREFLIGHT_PASS" if require_pass else True
@@ -342,6 +395,15 @@ def _dataset_delta(
         new_blocking=new_blocking,
         require_pass=require_pass,
         passed=passed,
+        baseline_blocking_issues=tuple(
+            sorted(baseline_ids, key=_blocking_issue_identity_sort_key)
+        ),
+        promoted_blocking_issues=tuple(
+            sorted(promoted_ids, key=_blocking_issue_identity_sort_key)
+        ),
+        new_blocking_issues=tuple(
+            sorted(new_ids, key=_blocking_issue_identity_sort_key)
+        ),
     )
 
 
@@ -564,6 +626,7 @@ def prepare_language_registry_promotion(
         if (
             promoted_result.passed != previous.passed
             or promoted_result.new_blocking != previous.new_blocking
+            or promoted_result.new_blocking_issues != previous.new_blocking_issues
             or promoted_result.promoted_status != previous.promoted_status
         ):
             failures.append(f"PROMOTED_CERTIFICATION_MISMATCH:{ds}")
