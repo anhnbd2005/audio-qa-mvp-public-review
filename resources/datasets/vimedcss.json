@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "dataset_id": "vimedcss",
+  "pretty_name": "ViMedCSS: Vietnamese Medical Code-Switching Speech Dataset",
+  "source": {
+    "provider": "huggingface",
+    "repository": "tensorxt/ViMedCSS",
+    "revision_identity": "b6959a18a08739464733930a872e7125c03e6558"
+  },
+  "allowed_splits": [
+    "train"
+  ],
+  "split_policy": {
+    "production_split": "train",
+    "forbidden_splits": [
+      "validation",
+      "test",
+      "hard"
+    ]
+  },
+  "record_identity": {
+    "field": "segment_id",
+    "audio_id_field": "segment_id"
+  },
+  "source_schema": [
+    "segment_id",
+    "duration_seconds",
+    "segment_text",
+    "cs_terms_list",
+    "cs_terms_count",
+    "topic",
+    "original_video_link",
+    "original_video_title",
+    "start_time",
+    "end_time"
+  ],
+  "semantic_source_fields": {
+    "segment_text": "segment_text",
+    "cs_terms_list": "cs_terms_list",
+    "topic": "topic"
+  },
+  "audio_reference_schema": {
+    "kind": "logical_segment_id",
+    "id_field": "segment_id"
+  },
+  "adapter_id": "vimedcss_source",
+  "production_constraints": {
+    "seed": 42,
+    "context_only_fields": []
+  },
+  "provenance": {
+    "source_manifest": "outputs/rnd_authoring/vimedcss/20261002T000000Z/source/source_manifest.json",
+    "rights_review": "REVIEW_REQUIRED"
+  }
+}

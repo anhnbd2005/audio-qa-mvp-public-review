@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "dataset_id": "vimedcss",
+  "status": "PROMOTED",
+  "migration_source": "vimedcss_onboarding",
+  "dataset_spec_hash": "fa0d6395cb59c79ab8a166dcf3d35e506158724e884e2d7a9cb49a48e7a2a4dc",
+  "semantic_catalog_hash": "447ab96ce333a4213f53ffc937c3829e36be6c582b79f05c3b0f6700b5210340",
+  "comparator_registry_hash": "baa50c6c2d9cf51d576dedd38750ba355a184c032a0c2fe624816fca6eab14fc",
+  "language_registry_hash": "3cea8cb7449e246ceeae79607d5fc0976d0931c5e588c5e0d4b3265d7039c789",
+  "production_contract_hash": "3eec55fcd45803af4b215443cd2fe61e56e7f1f55810c76984b8375717710d52",
+  "promotion_evidence": {
+    "audit": {
+      "status": "PASS",
+      "errors": {
+        "duplicate_qa_id": 0,
+        "duplicate_semantic_id": 0,
+        "duplicate_pair": 0
+      },
+      "critical": 0,
+      "major": 0,
+      "minor": 0,
+      "row_count": 65124,
+      "model_facing_rows": 65124
+    }
+  },
+  "promoted_semantic_types": [
+    "vimedcss_spoken_content_transcription",
+    "vimedcss_cs_term_extraction",
+    "vimedcss_topic_classification",
+    "vimedcss_cs_term_presence",
+    "vimedcss_pairwise_topic_same"
+  ],
+  "source_revision": "b6959a18a08739464733930a872e7125c03e6558",
+  "allowed_splits": [
+    "train"
+  ],
+  "semantic_change_status": "NEW_DATASET",
+  "promotion_fingerprint": "8dae7c6da7e775a426b9837100f4c58059bb05a4293db5e05796721b6633e437"
+}

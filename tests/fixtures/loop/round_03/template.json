@@ -1,0 +1,51 @@
+{
+  "round": 3,
+  "key_realizations": {
+    "QS_R3_01": "giới tính",
+    "QS_R3_02": "vùng giọng",
+    "QS_R3_05": "tỉnh thành phương ngữ",
+    "QS_R3_07": "vùng giọng"
+  },
+  "templates": [
+    {
+      "template_id": "T_R3_01_01",
+      "question_type_id": "QS_R3_01",
+      "text": "Hãy nêu [KEY] của người nói."
+    },
+    {
+      "template_id": "T_R3_02_01",
+      "question_type_id": "QS_R3_02",
+      "text": "[KEY] trong giọng nói này là gì?"
+    },
+    {
+      "template_id": "T_R3_03_01",
+      "question_type_id": "QS_R3_03",
+      "text": "Hãy ghi lại nội dung audio."
+    },
+    {
+      "template_id": "T_R3_04_01",
+      "question_type_id": "QS_R3_04",
+      "text": "Hai đoạn âm thanh này có phải một người nói không?"
+    },
+    {
+      "template_id": "T_R3_05_01",
+      "question_type_id": "QS_R3_05",
+      "text": "Xác định [KEY] của người nói."
+    },
+    {
+      "template_id": "T_R3_06_01",
+      "question_type_id": "QS_R3_06",
+      "text": "Hai clip có cùng vùng phương ngữ không?"
+    },
+    {
+      "template_id": "T_R3_07_01",
+      "question_type_id": "QS_R3_07",
+      "text": "Vùng giọng chung suy ra từ [KEY] là gì?"
+    },
+    {
+      "template_id": "T_R3_08_01",
+      "question_type_id": "QS_R3_08",
+      "text": "Nội dung của audio là gì?"
+    }
+  ]
+}

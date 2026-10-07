@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "dataset_id": "vietmdd",
+  "pretty_name": "VietMMD (Mispronunciation Detection and Diagnosis)",
+  "source": {
+    "provider": "huggingface",
+    "repository": "doof-ferb/VietMDD",
+    "revision_identity": "train_3181",
+    "declared_splits": {
+      "train": 3181,
+      "validation": 473,
+      "test": 612,
+      "orphan": 421
+    }
+  },
+  "allowed_splits": ["train"],
+  "split_policy": {
+    "production_split": "train",
+    "forbidden_splits": ["validation", "test", "orphan"]
+  },
+  "record_identity": {
+    "field": "row_id",
+    "audio_id_field": "audio_id"
+  },
+  "source_schema": [
+    "audio_id",
+    "audio_path",
+    "observed_transcription_norm",
+    "original_text_norm",
+    "text_exact_match",
+    "age_class"
+  ],
+  "semantic_source_fields": {
+    "observed_transcription": "observed_transcription_norm",
+    "reference_text": "original_text_norm",
+    "context_only": ["age_class"]
+  },
+  "audio_reference_schema": {
+    "kind": "logical_audio_id",
+    "id_field": "audio_id",
+    "materialized_metadata": "data/materialized/vietmdd/current/train.jsonl"
+  },
+  "adapter_id": "vietmdd_local_jsonl",
+  "production_constraints": {
+    "context_only_fields": ["age_class"],
+    "removed_hidden_target_families": [
+      "vietmdd_direct_original_text",
+      "vietmdd_target_match_original_text",
+      "vietmdd_equality_original_text",
+      "vietmdd_selection_original_text"
+    ]
+  },
+  "provenance": {
+    "source_manifest_sha256": "source_manifests/vietmdd/source_manifest.json",
+    "materialized_train_sha256": "19ba6aebd5f3a16ce3342ac413cb9da70de19454a61c4241bdff2b6d795fc7db"
+  }
+}

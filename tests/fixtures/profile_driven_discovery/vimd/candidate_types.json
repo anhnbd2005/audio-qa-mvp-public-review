@@ -1,0 +1,14 @@
+{
+  "question_types": [
+    {
+      "id": "QS_FIXTURE_01",
+      "name": "Speaker gender classification",
+      "goal": "Identify the gender of the speaker.",
+      "uses": ["audio", "gender"],
+      "input_count": 1,
+      "answer_rule": "gold = gender field",
+      "answer": {"kind": "field_value", "key": "gender"},
+      "input_context_fields": []
+    }
+  ]
+}

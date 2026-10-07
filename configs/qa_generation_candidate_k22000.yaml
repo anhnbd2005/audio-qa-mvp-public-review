@@ -1,0 +1,58 @@
+# Candidate production plan V1 — K = 22,000 semantic QA (2,000 per supported type).
+#
+# This is a CANDIDATE diagnostic plan, not a frozen corpus. It inherits the
+# production settings but pins an explicit strict per-type budget so the real
+# deterministic reuse / coverage behaviour can be measured.
+#
+# Production default remains configs/qa_generation_production.yaml (budget-null).
+seed: 42
+strict_budget: true
+allocation_policy: equal_by_type
+
+total_target_qa: null
+per_type_budget:
+  vimd-v2-s1-001: 2000
+  vimd-v2-s1-002: 2000
+  vimd-v2-s1-003: 2000
+  vimd-v2-s1-005: 2000
+  vimd-v2-s1-006: 2000
+  vimd-v2.1-s2-002: 2000
+  vimd-v2.1-s2-003: 2000
+  vimd-v2.1-s2-004: 2000
+  vimd-v2.2-s2-001: 2000
+  vimd-v2.2-s2-002: 2000
+  vimd-v2.2-s2-003: 2000
+
+per_language_pattern_budget: null
+max_audio_reuse: null
+max_source_row_reuse: null
+target_value_frequency_cap: null
+positive_negative_ratio: null
+selection_a_b_ratio: null
+dedup_policy: null
+language_preflight_artifact: data/materialized/language_preflight/vimd/current
+
+sampling:
+  value_sampling: uniform_over_values
+  max_source_row_reuse: null
+  max_source_row_reuse_per_type: null
+  prefer_distinct_speaker: true
+  hidden_identifier_field: speakerID
+  max_sampling_attempts: 64
+
+boolean:
+  positive_ratio: 0.5
+
+selection:
+  randomized_position: true
+
+text_negative:
+  length_bucket_match: true
+
+language:
+  variants_per_semantic_instance: 1
+  selection: deterministic_sha256
+
+audio:
+  materialize: false
+  local_root: null

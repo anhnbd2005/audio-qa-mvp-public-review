@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "resource_id": "gigaspeech2_vi_train_refined_source",
+  "version": "gigaspeech2_vi_train_refined_source_v1",
+  "dataset": "GigaSpeech2-VI",
+  "repo_id": "speechcolab/gigaspeech2",
+  "repo_type": "dataset",
+  "revision": "8dc0d0e502b7e6d5649a13cd4b677cf10c0b21e3",
+  "filename": "data/vi/train_refined.tsv",
+  "split": "train_refined",
+  "language": "vi",
+  "gated": "auto",
+  "tsv_sha256": "76ab4072353f202aec59999683f0b0c320001ad6fd648b126754ff8d2070eed1",
+  "tsv_bytes": 595005892,
+  "local_retained_metadata_path": "data/materialized/gigaspeech2_vi/_cache/8dc0d0e502b7e6d5649a13cd4b677cf10c0b21e3/train_refined.tsv",
+  "parser": {
+    "version": "gigaspeech2_vi_p6_parser_v1",
+    "line_contract": "<segment_id>\\t<text>\\n",
+    "split": "first_tab_only",
+    "text_preservation": "exact_source_text_no_normalization"
+  },
+  "verify_before_generation": true,
+  "forbidden_sources": [
+    "data/vi/train_raw.tsv",
+    "data/vi/dev.tsv",
+    "data/vi/test.tsv",
+    "data/vi/dev.tar.gz",
+    "data/vi/test.tar.gz",
+    "data/vi/train/*.tar.gz"
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "round": 1,
+  "key_realizations": {
+    "QS_R1_01": "giới tính",
+    "QS_R1_02": "vùng giọng",
+    "QS_R1_05": "vùng giọng"
+  },
+  "templates": [
+    {
+      "template_id": "T_R1_01_01",
+      "question_type_id": "QS_R1_01",
+      "text": "Hãy xác định [KEY] của người nói trong đoạn âm thanh."
+    },
+    {
+      "template_id": "T_R1_01_XX",
+      "question_type_id": "QS_R1_01",
+      "text": "Hãy cho biết [KEY_SOURCE] của người nói."
+    },
+    {
+      "template_id": "T_R1_02_01",
+      "question_type_id": "QS_R1_02",
+      "text": "[KEY] của người nói trong đoạn âm thanh là gì?"
+    },
+    {
+      "template_id": "T_R1_03_01",
+      "question_type_id": "QS_R1_03",
+      "text": "Hai đoạn âm thanh có phải do cùng một người nói không?"
+    },
+    {
+      "template_id": "T_R1_04_01",
+      "question_type_id": "QS_R1_04",
+      "text": "Hãy chép lại nội dung được nói trong đoạn âm thanh."
+    },
+    {
+      "template_id": "T_R1_05_01",
+      "question_type_id": "QS_R1_05",
+      "text": "Dựa vào [KEY] nghe được, vùng giọng chung của người nói là gì?"
+    },
+    {
+      "template_id": "T_R1_02_02",
+      "question_type_id": "QS_R1_02",
+      "text": "[KEY] của người nói là [VALUE]."
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+# OpenAI-compatible chat-completions endpoint — the local project proxy.
+# Overrides come from .env (see .env.example):
+#   OPENAI_COMPAT_BASE_URL / OPENAI_BASE_URL  (endpoint, overrides base_url)
+#   OPENAI_COMPAT_MODEL    / OPENAI_MODEL     (model, overrides model)
+#   OPENAI_COMPAT_API_KEY  / OPENAI_API_KEY   (gateway token; the local gateway
+#                                              rejects chat completions without
+#                                              it, and src.llm_client sends a
+#                                              harmless placeholder when empty)
+# api.openai.com is refused by src.llm_client: this project never sends
+# traffic to the hosted API and never requires an OpenAI credential.
+llm:
+  base_url: "http://localhost:20128/v1"
+  model: "ag/gemini-3.6-flash-low"
+  timeout: 600
+  # No automatic retry anywhere (resume runs handle failures).
+  max_retries: 0
+
+stages:
+  # Exploration generator: higher temperature for type discovery.
+  question_style:
+    temperature: 0.9
+    candidates_per_round: 8
+    max_output_tokens: 8192
+    thinking_budget: 2048
+
+  question_template:
+    temperature: 0.6
+    max_templates_per_type: 3
+    max_output_tokens: 8192
+    thinking_budget: 1536
+
+  paraphrase:
+    temperature: 0.9
+    paraphrases_per_round: 8
+    max_output_tokens: 4096
+    thinking_budget: 1024
+
+  quality:
+    temperature: 0.2
+    max_output_tokens: 4096
+    thinking_budget: 1536
+
+# Iterative discovery loop: each round runs Style -> Template -> Paraphrase
+# -> Quality (4 calls). Saturation is measured on question-TYPE discovery,
+# not wording variation.
+# API budget counts PAID attempts (failed parses included):
+# design needs 4R successes, plus exactly one manual-retry attempt
+# per stage (style R+1, template R+1, paraphrase R+1, quality R+1).
+loop:
+  max_rounds: 3
+
+  # stop immediately when a round yields zero genuinely new types
+  immediate_stop_if_zero_new: true
+
+  # saturation metric: accepted_new_types / generated_types
+  min_new_type_rate: 0.15
+
+  # consecutive low-gain rounds before concluding saturation
+  saturation_patience: 2
+
+preview:
+  num_samples: 10
+  random_seed: 42
+
+datasets:
+  vimd:
+    manifest: "manifest.jsonl"
+    schema: "schema.json"
+  gigaspeech2_vi:
+    manifest: "manifest.jsonl"
+    schema: "schema.json"
+  vietmdd:
+    manifest: "manifest.jsonl"
+    schema: "schema.json"
+  vietmed:
+    manifest: "manifest.jsonl"
+    schema: "schema.json"
+  vietnam_celeb:
+    manifest: "manifest.jsonl"
+    schema: "schema.json"
+  vimedcss:
+    manifest: "manifest.jsonl"
+    schema: "schema.json"
+  vitosa:
+    manifest: "manifest.jsonl"
+    schema: "schema.json"
+  vn_slu:
+    manifest: "manifest.jsonl"
+    schema: "schema.json"

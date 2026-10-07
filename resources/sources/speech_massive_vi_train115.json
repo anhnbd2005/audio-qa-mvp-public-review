@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "resource_id": "speech_massive_vi_train115_source",
+  "version": "speech_massive_vi_train115_source_v1",
+  "dataset": "Speech-MASSIVE",
+  "repo_id": "FBK-MT/Speech-MASSIVE",
+  "repo_type": "dataset",
+  "config": "vi-VN",
+  "split": "train_115",
+  "language": "vi-VN",
+  "revision": "ff792febc16187a21e5bca38fb02a55daf91dc05",
+  "files": [
+    {
+      "path": "vi-VN/train_115-00000-of-00001.parquet",
+      "bytes": 33177730,
+      "sha256": "966850f06f59fef424ecb2f2c7b0094db6bf64728eeb81bf4812a91aa2c7c442"
+    }
+  ],
+  "local_retained_metadata_path": "data/materialized/speech_massive_vi/_cache/ff792febc16187a21e5bca38fb02a55daf91dc05/train_115-00000-of-00001.parquet",
+  "relevant_fields": [
+    "id",
+    "locale",
+    "partition",
+    "path",
+    "is_validated",
+    "speaker_id",
+    "speaker_sex"
+  ],
+  "forbidden_splits": ["validation", "test"],
+  "parser": {
+    "version": "speech_massive_vi_p2_parser_v1",
+    "format": "parquet",
+    "id_field": "id",
+    "speaker_field": "speaker_id",
+    "sex_field": "speaker_sex",
+    "path_field": "path"
+  },
+  "verify_before_generation": true
+}

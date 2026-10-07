@@ -1,0 +1,42 @@
+{
+ "round": 1,
+ "accepted_new": [
+  {
+   "type_id": "QS_R1_01",
+   "keep_template_ids": [
+    "T_R1_01_01",
+    "T_R1_01_01_P01"
+   ]
+  },
+  {
+   "type_id": "QS_R1_02",
+   "keep_template_ids": [
+    "T_R1_02_01",
+    "T_R1_02_01_P01"
+   ]
+  },
+  {
+   "type_id": "QS_R1_03",
+   "keep_template_ids": [
+    "T_R1_03_01",
+    "T_R1_03_01_P01"
+   ]
+  },
+  {
+   "type_id": "QS_R1_04",
+   "keep_template_ids": [
+    "T_R1_04_01",
+    "T_R1_04_01_P01"
+   ]
+  },
+  {
+   "type_id": "QS_R1_05",
+   "keep_template_ids": [
+    "T_R1_05_01",
+    "T_R1_05_01_P01"
+   ]
+  }
+ ],
+ "duplicates": [],
+ "rejected": []
+}

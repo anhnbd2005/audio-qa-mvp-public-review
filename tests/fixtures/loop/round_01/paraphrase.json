@@ -1,0 +1,40 @@
+{
+  "round": 1,
+  "paraphrases": [
+    {
+      "template_id": "T_R1_01_01_P01",
+      "source_template_id": "T_R1_01_01",
+      "text": "Dựa vào đoạn âm thanh, hãy cho biết [KEY] của người nói."
+    },
+    {
+      "template_id": "T_R1_02_01_P01",
+      "source_template_id": "T_R1_02_01",
+      "text": "Theo giọng nói trong đoạn ghi âm, [KEY] của người nói là gì?"
+    },
+    {
+      "template_id": "T_R1_03_01_P01",
+      "source_template_id": "T_R1_03_01",
+      "text": "Hai đoạn audio này có phải của cùng một người nói không?"
+    },
+    {
+      "template_id": "T_R1_04_01_P01",
+      "source_template_id": "T_R1_04_01",
+      "text": "Nội dung được nói trong đoạn audio này là gì?"
+    },
+    {
+      "template_id": "T_R1_05_01_P01",
+      "source_template_id": "T_R1_05_01",
+      "text": "Từ [KEY] của giọng nói, hãy suy ra vùng giọng chung của người nói."
+    },
+    {
+      "template_id": "T_R1_02_01_P02",
+      "source_template_id": "T_R1_02_01",
+      "text": "Xác định [KEY] của người nói. [VALUE]"
+    },
+    {
+      "template_id": "T_R1_01_01_P02",
+      "source_template_id": "T_R1_01_01",
+      "text": "  DỰA VÀO ĐOẠN ÂM THANH, HÃY CHO BIẾT [KEY] CỦA NGƯỜI NÓI.  "
+    }
+  ]
+}

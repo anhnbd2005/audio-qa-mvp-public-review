@@ -1,0 +1,211 @@
+{
+  "dataset": "vimedcss",
+  "catalog_version": "vimedcss_semantic_catalog_v1",
+  "comparators_resource": "comparators.json",
+  "tasks": [
+    {
+      "type_id": "vimedcss_spoken_content_transcription",
+      "proposition_id": "vimedcss_spoken_content_transcription",
+      "proposition_description": "The spoken lexical content of the audio is transcribed (Vietnamese with embedded English medical code-switch terms).",
+      "operator": "DIRECT",
+      "classification": "PRIMITIVE_RELATION",
+      "kind": "ATOMIC",
+      "audio_arity": 1,
+      "visible_context_roles": [],
+      "outputs": [
+        {
+          "role": "spoken_transcription",
+          "kind": "field_value",
+          "dependencies": []
+        }
+      ],
+      "dependency_graph": [],
+      "comparator_id": "vimedcss_spoken_transcript_equivalence",
+      "invariances": [
+        "letter_case",
+        "surrounding_whitespace",
+        "repeated_whitespace",
+        "presentation_punctuation_insertion_or_removal"
+      ],
+      "non_invariances": [
+        "vietnamese_letters",
+        "vietnamese_diacritics_and_tones",
+        "digits",
+        "word_identity",
+        "word_order",
+        "lexical_insertions",
+        "lexical_deletions",
+        "lexical_substitutions"
+      ],
+      "base_type_id": null,
+      "source_role_mapping": {
+        "source_field": "segment_text"
+      },
+      "evaluation_value": "",
+      "tier": "T1_PERCEPTION",
+      "gold_origin": "SOURCE",
+      "guardrail_status": null,
+      "closure_hash": null
+    },
+    {
+      "type_id": "vimedcss_cs_term_extraction",
+      "proposition_id": "vimedcss_cs_term_extraction",
+      "proposition_description": "The set of code-switched medical terms spoken in the audio (unordered set of annotated term labels).",
+      "operator": "DIRECT",
+      "classification": "PRIMITIVE_RELATION",
+      "kind": "ATOMIC",
+      "audio_arity": 1,
+      "visible_context_roles": [],
+      "outputs": [
+        {
+          "role": "cs_terms",
+          "kind": "field_value",
+          "dependencies": []
+        }
+      ],
+      "dependency_graph": [],
+      "comparator_id": "vimedcss_cs_term_equivalence",
+      "invariances": [
+        "letter_case",
+        "surrounding_whitespace",
+        "repeated_whitespace"
+      ],
+      "non_invariances": [
+        "punctuation",
+        "hyphenation",
+        "digits",
+        "vietnamese_letters",
+        "vietnamese_diacritics_and_tones",
+        "word_identity",
+        "word_order"
+      ],
+      "base_type_id": null,
+      "source_role_mapping": {
+        "source_field": "cs_terms_list"
+      },
+      "evaluation_value": "",
+      "tier": "T1_PERCEPTION",
+      "gold_origin": "SOURCE",
+      "guardrail_status": null,
+      "closure_hash": null
+    },
+    {
+      "type_id": "vimedcss_topic_classification",
+      "proposition_id": "vimedcss_topic_classification",
+      "proposition_description": "The documented medical topic label of the audio.",
+      "operator": "DIRECT",
+      "classification": "PRIMITIVE_RELATION",
+      "kind": "ATOMIC",
+      "audio_arity": 1,
+      "visible_context_roles": [],
+      "outputs": [
+        {
+          "role": "topic",
+          "kind": "field_value",
+          "dependencies": []
+        }
+      ],
+      "dependency_graph": [],
+      "comparator_id": "categorical_label_exact",
+      "invariances": [
+        "surrounding_whitespace",
+        "repeated_whitespace"
+      ],
+      "non_invariances": [
+        "label_identity",
+        "letter_case",
+        "digits"
+      ],
+      "base_type_id": null,
+      "source_role_mapping": {
+        "source_field": "topic"
+      },
+      "evaluation_value": "",
+      "tier": "T1_PERCEPTION",
+      "gold_origin": "SOURCE",
+      "guardrail_status": null,
+      "closure_hash": null
+    },
+    {
+      "type_id": "vimedcss_cs_term_presence",
+      "proposition_id": "vimedcss_cs_term_presence",
+      "proposition_description": "Whether a visible candidate medical term is among the annotated code-switched terms of the audio.",
+      "operator": "TARGET_MATCH",
+      "classification": "PRIMITIVE_RELATION",
+      "kind": "ATOMIC",
+      "audio_arity": 1,
+      "visible_context_roles": [
+        "candidate_term"
+      ],
+      "outputs": [
+        {
+          "role": "present",
+          "kind": "boolean",
+          "dependencies": []
+        }
+      ],
+      "dependency_graph": [],
+      "comparator_id": "vimedcss_cs_term_equivalence",
+      "invariances": [
+        "letter_case",
+        "surrounding_whitespace",
+        "repeated_whitespace"
+      ],
+      "non_invariances": [
+        "punctuation",
+        "hyphenation",
+        "digits",
+        "vietnamese_letters",
+        "vietnamese_diacritics_and_tones",
+        "word_identity",
+        "word_order"
+      ],
+      "base_type_id": null,
+      "source_role_mapping": {
+        "source_field": "cs_terms_list"
+      },
+      "evaluation_value": "",
+      "tier": "T2_DERIVED",
+      "gold_origin": "DERIVED_SOURCE",
+      "guardrail_status": null,
+      "closure_hash": null
+    },
+    {
+      "type_id": "vimedcss_pairwise_topic_same",
+      "proposition_id": "vimedcss_pairwise_topic_same",
+      "proposition_description": "Whether two audios carry the same medical topic.",
+      "operator": "EQUALITY",
+      "classification": "PRIMITIVE_RELATION",
+      "kind": "ATOMIC",
+      "audio_arity": 2,
+      "visible_context_roles": [],
+      "outputs": [
+        {
+          "role": "same_topic",
+          "kind": "boolean",
+          "dependencies": []
+        }
+      ],
+      "dependency_graph": [],
+      "comparator_id": "categorical_label_exact",
+      "invariances": [
+        "surrounding_whitespace",
+        "repeated_whitespace"
+      ],
+      "non_invariances": [
+        "label_identity",
+        "letter_case",
+        "digits"
+      ],
+      "base_type_id": null,
+      "source_role_mapping": {
+        "source_field": "topic"
+      },
+      "evaluation_value": "",
+      "tier": "T3_RELATIONAL",
+      "gold_origin": "DERIVED_SOURCE",
+      "guardrail_status": null,
+      "closure_hash": null
+    }
+  ]
+}

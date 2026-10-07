@@ -1,0 +1,631 @@
+{
+  "language": "vi",
+  "version": "canonical",
+  "schema_version": 1,
+  "created_from": "reviewed canonical audio-question evidence corpus and explicit generic grammar",
+  "library_hash": "290e99933d713bdbbd1794c497577c0b90a48b82ce29fe98b644950331db7b8b",
+  "blueprints": [
+    {
+      "blueprint_id": "vi1_dir_cat_01",
+      "language": "vi",
+      "operator": "DIRECT",
+      "semantic_class": "categorical_attribute",
+      "pattern": "[ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] trong đoạn âm thanh là gì?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "field_value",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_dir_cat_02",
+      "language": "vi",
+      "operator": "DIRECT",
+      "semantic_class": "categorical_attribute",
+      "pattern": "Hãy xác định [ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] trong đoạn âm thanh.",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "field_value",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_dir_cat_03",
+      "language": "vi",
+      "operator": "DIRECT",
+      "semantic_class": "categorical_attribute",
+      "pattern": "Dựa vào đoạn âm thanh, [ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] là gì?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "field_value",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_dir_num_01",
+      "language": "vi",
+      "operator": "DIRECT",
+      "semantic_class": "numeric_attribute",
+      "pattern": "[ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] trong đoạn âm thanh là bao nhiêu [UNIT]?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]",
+        "[UNIT]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "field_value",
+      "version": "canonical",
+      "unit_policy": "required",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_dir_num_02",
+      "language": "vi",
+      "operator": "DIRECT",
+      "semantic_class": "numeric_attribute",
+      "pattern": "Hãy xác định [ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] trong đoạn âm thanh, tính theo [UNIT].",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]",
+        "[UNIT]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "field_value",
+      "version": "canonical",
+      "unit_policy": "required",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_dir_num_03",
+      "language": "vi",
+      "operator": "DIRECT",
+      "semantic_class": "numeric_attribute",
+      "pattern": "[ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] trong đoạn âm thanh là bao nhiêu?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "field_value",
+      "version": "canonical",
+      "unit_policy": "forbidden",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_dir_text_01",
+      "language": "vi",
+      "operator": "DIRECT",
+      "semantic_class": "text_content",
+      "pattern": "Hãy ghi lại [CONTENT_PHRASE] trong đoạn âm thanh.",
+      "required_slots": [
+        "[CONTENT_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "field_value",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_dir_text_02",
+      "language": "vi",
+      "operator": "DIRECT",
+      "semantic_class": "text_content",
+      "pattern": "[CONTENT_PHRASE] trong đoạn âm thanh là gì?",
+      "required_slots": [
+        "[CONTENT_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "field_value",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_eq_cat_01",
+      "language": "vi",
+      "operator": "EQUALITY",
+      "semantic_class": "categorical_attribute",
+      "pattern": "Hai đoạn âm thanh có cùng [ATTRIBUTE_PHRASE] không?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_eq_cat_02",
+      "language": "vi",
+      "operator": "EQUALITY",
+      "semantic_class": "categorical_attribute",
+      "pattern": "[ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] trong hai đoạn âm thanh có giống nhau không?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_eq_num_01",
+      "language": "vi",
+      "operator": "EQUALITY",
+      "semantic_class": "numeric_attribute",
+      "pattern": "Hai đoạn âm thanh có cùng [ATTRIBUTE_PHRASE] không?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_eq_num_02",
+      "language": "vi",
+      "operator": "EQUALITY",
+      "semantic_class": "numeric_attribute",
+      "pattern": "[ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] trong hai đoạn âm thanh có bằng nhau không?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_eq_text_01",
+      "language": "vi",
+      "operator": "EQUALITY",
+      "semantic_class": "text_content",
+      "pattern": "Hai đoạn âm thanh có cùng [CONTENT_PHRASE] không?",
+      "required_slots": [
+        "[CONTENT_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_eq_text_02",
+      "language": "vi",
+      "operator": "EQUALITY",
+      "semantic_class": "text_content",
+      "pattern": "[CONTENT_PHRASE] trong hai đoạn âm thanh có giống nhau không?",
+      "required_slots": [
+        "[CONTENT_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_tm_cat_01",
+      "language": "vi",
+      "operator": "TARGET_MATCH",
+      "semantic_class": "categorical_attribute",
+      "pattern": "Với mục tiêu [TARGET_VALUE], [ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] trong đoạn âm thanh có khớp không?",
+      "required_slots": [
+        "[TARGET_VALUE]",
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_tm_cat_02",
+      "language": "vi",
+      "operator": "TARGET_MATCH",
+      "semantic_class": "categorical_attribute",
+      "pattern": "[ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] trong đoạn âm thanh có phải là [TARGET_VALUE] không?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]",
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_tm_num_01",
+      "language": "vi",
+      "operator": "TARGET_MATCH",
+      "semantic_class": "numeric_attribute",
+      "pattern": "[ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] trong đoạn âm thanh có bằng [TARGET_VALUE] [UNIT] không?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]",
+        "[TARGET_VALUE]",
+        "[UNIT]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "version": "canonical",
+      "unit_policy": "required",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_tm_num_02",
+      "language": "vi",
+      "operator": "TARGET_MATCH",
+      "semantic_class": "numeric_attribute",
+      "pattern": "Với mục tiêu [TARGET_VALUE] [UNIT], [ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] có đúng với mục tiêu không?",
+      "required_slots": [
+        "[TARGET_VALUE]",
+        "[UNIT]",
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "version": "canonical",
+      "unit_policy": "required",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_tm_num_03",
+      "language": "vi",
+      "operator": "TARGET_MATCH",
+      "semantic_class": "numeric_attribute",
+      "pattern": "[ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] trong đoạn âm thanh có bằng [TARGET_VALUE] không?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]",
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "version": "canonical",
+      "unit_policy": "forbidden",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_tm_text_01",
+      "language": "vi",
+      "operator": "TARGET_MATCH",
+      "semantic_class": "text_content",
+      "pattern": "Đoạn âm thanh này có [CONTENT_PHRASE] là “[TARGET_VALUE]” không?",
+      "required_slots": [
+        "[CONTENT_PHRASE]",
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_tm_text_02",
+      "language": "vi",
+      "operator": "TARGET_MATCH",
+      "semantic_class": "text_content",
+      "pattern": "[CONTENT_PHRASE] trong đoạn âm thanh có khớp với mục tiêu “[TARGET_VALUE]” không?",
+      "required_slots": [
+        "[CONTENT_PHRASE]",
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_sel_cat_01",
+      "language": "vi",
+      "operator": "PAIRWISE_SELECTION",
+      "semantic_class": "categorical_attribute",
+      "pattern": "Mục tiêu là [TARGET_VALUE]. Trong hai đoạn âm thanh A và B, đoạn nào có [ATTRIBUTE_PHRASE] khớp với mục tiêu?",
+      "required_slots": [
+        "[TARGET_VALUE]",
+        "[ATTRIBUTE_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "audio_index",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_sel_cat_02",
+      "language": "vi",
+      "operator": "PAIRWISE_SELECTION",
+      "semantic_class": "categorical_attribute",
+      "pattern": "Trong hai đoạn âm thanh A và B, đoạn nào có [ATTRIBUTE_PHRASE] là [TARGET_VALUE]?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "audio_index",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_sel_num_01",
+      "language": "vi",
+      "operator": "PAIRWISE_SELECTION",
+      "semantic_class": "numeric_attribute",
+      "pattern": "Trong hai đoạn âm thanh A và B, đoạn nào có [ATTRIBUTE_PHRASE] bằng [TARGET_VALUE] [UNIT]?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[TARGET_VALUE]",
+        "[UNIT]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "audio_index",
+      "version": "canonical",
+      "unit_policy": "required",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_sel_num_02",
+      "language": "vi",
+      "operator": "PAIRWISE_SELECTION",
+      "semantic_class": "numeric_attribute",
+      "pattern": "Mục tiêu là [TARGET_VALUE] [UNIT]. Hãy chọn đoạn âm thanh A hoặc B có [ATTRIBUTE_PHRASE] đúng với mục tiêu.",
+      "required_slots": [
+        "[TARGET_VALUE]",
+        "[UNIT]",
+        "[ATTRIBUTE_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "audio_index",
+      "version": "canonical",
+      "unit_policy": "required",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_sel_num_03",
+      "language": "vi",
+      "operator": "PAIRWISE_SELECTION",
+      "semantic_class": "numeric_attribute",
+      "pattern": "Trong hai đoạn âm thanh A và B, đoạn nào có [ATTRIBUTE_PHRASE] bằng [TARGET_VALUE]?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "audio_index",
+      "version": "canonical",
+      "unit_policy": "forbidden",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_sel_text_01",
+      "language": "vi",
+      "operator": "PAIRWISE_SELECTION",
+      "semantic_class": "text_content",
+      "pattern": "Mục tiêu là “[TARGET_VALUE]”. Trong hai đoạn âm thanh A và B, đoạn nào chứa nội dung này?",
+      "required_slots": [
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "audio_index",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_sel_text_02",
+      "language": "vi",
+      "operator": "PAIRWISE_SELECTION",
+      "semantic_class": "text_content",
+      "pattern": "Trong hai đoạn âm thanh A và B, đoạn nào có [CONTENT_PHRASE] là “[TARGET_VALUE]”?",
+      "required_slots": [
+        "[CONTENT_PHRASE]",
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "audio_index",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_cmp_dir_candidate_01",
+      "language": "vi",
+      "operator": "COMPOSITE",
+      "semantic_class": "text_content",
+      "pattern": "Nghe [AUDIO_REFERENCE], [INSTRUCTION_1] và [INSTRUCTION_2].",
+      "required_slots": [
+        "[AUDIO_REFERENCE]",
+        "[INSTRUCTION_1]",
+        "[INSTRUCTION_2]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "structured",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_cmp_dir_reference_01",
+      "language": "vi",
+      "operator": "COMPOSITE",
+      "semantic_class": "text_content",
+      "pattern": "Nghe [AUDIO_REFERENCE], [INSTRUCTION_1] và [INSTRUCTION_2].",
+      "required_slots": [
+        "[AUDIO_REFERENCE]",
+        "[INSTRUCTION_1]",
+        "[INSTRUCTION_2]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "structured",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_cmp_pair_equality_01",
+      "language": "vi",
+      "operator": "COMPOSITE",
+      "semantic_class": "text_content",
+      "pattern": "Nghe [AUDIO_REFERENCE], [INSTRUCTION_1], [INSTRUCTION_2], sau đó [INSTRUCTION_3].",
+      "required_slots": [
+        "[AUDIO_REFERENCE]",
+        "[INSTRUCTION_1]",
+        "[INSTRUCTION_2]",
+        "[INSTRUCTION_3]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "structured",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_cmp_pair_selection_01",
+      "language": "vi",
+      "operator": "COMPOSITE",
+      "semantic_class": "text_content",
+      "pattern": "Nghe [AUDIO_REFERENCE], [INSTRUCTION_1], [INSTRUCTION_2], sau đó [INSTRUCTION_3].",
+      "required_slots": [
+        "[AUDIO_REFERENCE]",
+        "[INSTRUCTION_1]",
+        "[INSTRUCTION_2]",
+        "[INSTRUCTION_3]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "structured",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_sm_ref_01",
+      "language": "vi",
+      "operator": "TARGET_MATCH",
+      "semantic_class": "text_content",
+      "pattern": "[CONTENT_PHRASE] trong đoạn âm thanh có khớp với văn bản tham chiếu “[TARGET_VALUE]” không?",
+      "required_slots": [
+        "[CONTENT_PHRASE]",
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    },
+    {
+      "blueprint_id": "vi1_sm_ref_02",
+      "language": "vi",
+      "operator": "TARGET_MATCH",
+      "semantic_class": "text_content",
+      "pattern": "Đoạn âm thanh này có [CONTENT_PHRASE] khớp với văn bản tham chiếu “[TARGET_VALUE]” không?",
+      "required_slots": [
+        "[CONTENT_PHRASE]",
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "version": "canonical",
+      "unit_policy": "any",
+      "match_policies": [
+        "exact"
+      ]
+    }
+  ]
+}

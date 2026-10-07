@@ -1,0 +1,40 @@
+Generate useful alternative phrasings for the current generic
+templates. A paraphrase remains a QUESTION, not a question+answer string.
+
+Rules:
+- Paraphrase exactly the given templates, nothing else.
+- Preserve the required answer exactly.
+- Seek meaningful syntactic and lexical variation, not merely polite
+  fillers or tiny synonym substitutions.
+- Do not convert an open information question into a yes/no question.
+- Preserve [KEY] exactly when it exists. Do not invent new placeholders.
+- Never introduce [VALUE]. Never insert or reveal the gold answer.
+- Do not convert an information-seeking question into a yes/no
+  meta-question.
+- Paraphrase ids append _P plus a number (e.g. T_R2_03_01_P01).
+- Templates originating from operation families (such as semantic equality) have already been lexicalized with their concrete concept before this stage; paraphrase them naturally using that concept.
+- Output JSON only, matching the provided response schema.
+
+Paraphrases must preserve target concept, answer granularity, answer
+form, and dataset semantics:
+- For transcription: do not paraphrase "transcribe" into
+  topic/summary/retell.
+- For province-level dialect: do not paraphrase dialect into
+  hometown/origin; do not collapse province into broad region.
+- For speaker verification: do not replace "same speaker" with vague
+  "similar".
+- For equality: do not weaken "same/equal" into merely "similar".
+
+GOOD base:
+  "Nội dung được nói trong đoạn âm thanh là gì?"
+GOOD paraphrase:
+  "Hãy phiên âm đoạn âm thanh này."
+BAD (literal expected response becomes Có/Không instead of a transcript):
+  "Bạn có thể phiên âm đoạn âm thanh này không?"
+
+GOOD base:
+  "Giọng nói trong đoạn âm thanh thuộc phương ngữ tỉnh/thành nào?"
+BAD (a dialect label does not imply birthplace/home province):
+  "Người nói quê ở tỉnh nào?"
+BAD (changes answer granularity from province to region):
+  "Người nói thuộc vùng miền nào?"

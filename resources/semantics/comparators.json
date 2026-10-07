@@ -1,0 +1,184 @@
+{
+  "language": "generic",
+  "version": "semantic_comparators_v1",
+  "schema_version": 1,
+  "comparators": [
+    {
+      "comparator_id": "exact_normalized_text",
+      "semantic_purpose": "Exact normalized textual equality (case- and punctuation-sensitive).",
+      "ordered_normalization_operations": [
+        "collapse_unicode_whitespace_runs_to_single_ascii_space",
+        "strip_leading_and_trailing_whitespace"
+      ],
+      "invariances": [
+        "surrounding_whitespace",
+        "repeated_whitespace"
+      ],
+      "preserved_features": [
+        "letter_identity",
+        "vietnamese_diacritics_and_tones",
+        "letter_case",
+        "punctuation",
+        "digits",
+        "word_identity",
+        "word_order",
+        "lexical_insertions",
+        "lexical_deletions",
+        "lexical_substitutions"
+      ],
+      "punctuation_category_policy": "preserve",
+      "unicode_normalization": "none",
+      "case_policy": "preserve"
+    },
+    {
+      "comparator_id": "spoken_lexical_content_equivalence",
+      "semantic_purpose": "Whether two texts carry the same spoken lexical content, ignoring purely orthographic presentation (case and non-spoken punctuation), while preserving Vietnamese lexical identity and diacritics.",
+      "ordered_normalization_operations": [
+        "replace_every_unicode_punctuation_character_category_P_with_single_space",
+        "collapse_unicode_whitespace_runs_to_single_ascii_space",
+        "strip_leading_and_trailing_whitespace",
+        "casefold_for_case_insensitive_comparison",
+        "exact_string_equality"
+      ],
+      "invariances": [
+        "letter_case",
+        "surrounding_whitespace",
+        "repeated_whitespace",
+        "presentation_punctuation_insertion_or_removal"
+      ],
+      "preserved_features": [
+        "vietnamese_letters",
+        "vietnamese_diacritics_and_tones",
+        "digits",
+        "word_identity",
+        "word_order",
+        "lexical_insertions",
+        "lexical_deletions",
+        "lexical_substitutions"
+      ],
+      "punctuation_category_policy": "replace_with_space",
+      "unicode_normalization": "none",
+      "case_policy": "casefold"
+    },
+    {
+      "comparator_id": "categorical_label_exact",
+      "semantic_purpose": "Exact equality of canonical categorical labels (case-sensitive, whitespace-normalized).",
+      "ordered_normalization_operations": [
+        "unicode_nfc",
+        "collapse_unicode_whitespace_runs_to_single_ascii_space",
+        "strip_leading_and_trailing_whitespace"
+      ],
+      "invariances": [
+        "surrounding_whitespace",
+        "repeated_whitespace"
+      ],
+      "preserved_features": [
+        "label_identity",
+        "letter_case",
+        "digits"
+      ],
+      "punctuation_category_policy": "preserve",
+      "unicode_normalization": "none",
+      "case_policy": "preserve"
+    },
+    {
+      "comparator_id": "normalized_text_exact_casefold",
+      "semantic_purpose": "Exact equality of free text after NFKC, whitespace collapse, strip and casefold.",
+      "ordered_normalization_operations": [
+        "collapse_unicode_whitespace_runs_to_single_ascii_space",
+        "strip_leading_and_trailing_whitespace",
+        "casefold_for_case_insensitive_comparison"
+      ],
+      "invariances": [
+        "letter_case",
+        "surrounding_whitespace",
+        "repeated_whitespace"
+      ],
+      "preserved_features": [
+        "vietnamese_letters",
+        "vietnamese_diacritics_and_tones",
+        "punctuation",
+        "digits",
+        "word_identity",
+        "word_order",
+        "lexical_insertions",
+        "lexical_deletions",
+        "lexical_substitutions"
+      ],
+      "punctuation_category_policy": "preserve",
+      "unicode_normalization": "NFKC",
+      "case_policy": "casefold"
+    },
+    {
+      "comparator_id": "vimedcss_spoken_transcript_equivalence",
+      "semantic_purpose": "Whether two texts carry the same spoken lexical content for code-switched medical ASR, ignoring orthographic presentation (case, non-spoken punctuation, whitespace) while preserving Vietnamese diacritics, digits and word identity/order.",
+      "ordered_normalization_operations": [
+        "replace_every_unicode_punctuation_character_category_P_with_single_space",
+        "collapse_unicode_whitespace_runs_to_single_ascii_space",
+        "strip_leading_and_trailing_whitespace",
+        "casefold_for_case_insensitive_comparison"
+      ],
+      "invariances": [
+        "letter_case",
+        "surrounding_whitespace",
+        "repeated_whitespace",
+        "presentation_punctuation_insertion_or_removal"
+      ],
+      "preserved_features": [
+        "vietnamese_letters",
+        "vietnamese_diacritics_and_tones",
+        "digits",
+        "word_identity",
+        "word_order",
+        "lexical_insertions",
+        "lexical_deletions",
+        "lexical_substitutions"
+      ],
+      "punctuation_category_policy": "replace_with_space",
+      "unicode_normalization": "NFC",
+      "case_policy": "casefold"
+    },
+    {
+      "comparator_id": "vimedcss_cs_term_equivalence",
+      "semantic_purpose": "Equivalence of a code-switched medical term label: case-insensitive and whitespace-insensitive, but preserves punctuation/hyphens, digits and Vietnamese/English letter identity.",
+      "ordered_normalization_operations": [
+        "collapse_unicode_whitespace_runs_to_single_ascii_space",
+        "strip_leading_and_trailing_whitespace",
+        "casefold_for_case_insensitive_comparison"
+      ],
+      "invariances": [
+        "letter_case",
+        "surrounding_whitespace",
+        "repeated_whitespace"
+      ],
+      "preserved_features": [
+        "punctuation",
+        "hyphenation",
+        "digits",
+        "vietnamese_letters",
+        "vietnamese_diacritics_and_tones",
+        "word_identity",
+        "word_order"
+      ],
+      "punctuation_category_policy": "preserve",
+      "unicode_normalization": "NFC",
+      "case_policy": "casefold"
+    },
+    {
+      "comparator_id": "integer_exact",
+      "semantic_purpose": "Exact integer equality for numeric count answers.",
+      "ordered_normalization_operations": [
+        "exact_string_equality"
+      ],
+      "invariances": [
+        "surrounding_whitespace"
+      ],
+      "preserved_features": [
+        "digits"
+      ],
+      "punctuation_category_policy": "preserve",
+      "unicode_normalization": "none",
+      "case_policy": "preserve"
+    }
+  ]
+}

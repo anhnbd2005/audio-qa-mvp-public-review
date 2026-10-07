@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "task": "P7",
+  "benchmark_name": "Music Tempo Detection",
+  "semantic_type": "lyric_density_classification",
+  "policy_origin": "BENCHMARK_DERIVED_SEMANTIC_POLICY",
+  "policy_version": "p7_lyric_density_policy_v1",
+  "scalar": "VietLyrics.wpm",
+  "calibration_source": {
+    "benchmark": "SAUVI",
+    "qa_family": "music-ld",
+    "qa_count": 81,
+    "ambiguous_source_wpm": 8,
+    "manifest_sha256": "3de98c62ea9b4f4ae2e5aa0ade406ae9dd26cd707f24d188236bba6bdf7753f4"
+  },
+  "class_order": [
+    "Thưa",
+    "Vừa",
+    "Dày",
+    "Rất dày"
+  ],
+  "thresholds": {
+    "t1": "56.1097976955994875",
+    "t2": "66.91883456630708",
+    "t3": "80.66592441889507"
+  },
+  "rule": [
+    "wpm < t1 -> Thưa",
+    "t1 <= wpm < t2 -> Vừa",
+    "t2 <= wpm < t3 -> Dày",
+    "wpm >= t3 -> Rất dày"
+  ],
+  "benchmark_reproduction": {
+    "correct": 81,
+    "total": 81,
+    "accuracy": 1.0
+  },
+  "provenance_warning": "BENCHMARK_DERIVED_SEMANTIC_POLICY: thresholds were derived from SAUVI P7 test labels; this is not the original construction rule, and evaluating on the same P7 examples is not held-out.",
+  "gold_origin": "DERIVED_SOURCE",
+  "compiler_tier": "T2_DERIVED"
+}

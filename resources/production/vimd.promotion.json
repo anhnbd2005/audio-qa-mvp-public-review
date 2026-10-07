@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "dataset_id": "vimd",
+  "status": "PROMOTED",
+  "migration_source": "existing_canonical_final",
+  "dataset_spec_hash": "2a131b8acc94eb5a2f046996d626f9b64ac8160536c9566ce7488644945a5ef8",
+  "semantic_catalog_hash": "955fd3ff61fde389b294d6440fffa61dd84fa5d853b7360a85270b20cf260093",
+  "comparator_registry_hash": "c1247e4ba16d31669411252172092dd32fe3202c1decb35c6bc9b1eab8f27c60",
+  "language_registry_hash": "267a747d95016457831ede80993648c612079f2a473e62af79e3e030413e425f",
+  "production_contract_hash": "c59a77f83554840c40e326f90505afd9408a325bec0b25c849c7b63f60eb49d7",
+  "promotion_evidence": {
+    "dataset_profile": {
+      "status": "N/A",
+      "note": "existing canonical final"
+    },
+    "semantic_contracts": {
+      "status": "VALID"
+    },
+    "semantic_invariance": {
+      "status": "N/A",
+      "note": "existing canonical final"
+    },
+    "semantic_feasibility": {
+      "status": "N/A",
+      "note": "existing canonical final"
+    },
+    "language_preflight": {
+      "status": "PASS",
+      "note": "canonical final plan already frozen"
+    },
+    "production_readiness": {
+      "status": "N/A",
+      "note": "existing canonical final"
+    },
+    "final_plan": {
+      "plan": "vimd_plan_k22000"
+    }
+  },
+  "promoted_semantic_types": [
+    "vimd-v2-s1-001",
+    "vimd-v2-s1-002",
+    "vimd-v2-s1-003",
+    "vimd-v2-s1-005",
+    "vimd-v2-s1-006",
+    "vimd-v2.1-s2-002",
+    "vimd-v2.1-s2-003",
+    "vimd-v2.1-s2-004",
+    "vimd-v2.2-s2-001",
+    "vimd-v2.2-s2-002",
+    "vimd-v2.2-s2-003"
+  ],
+  "source_revision": "3a5b30157034e7eadd5c75fae1a820c6f9383398",
+  "allowed_splits": [
+    "train"
+  ],
+  "semantic_change_status": "NO_SEMANTIC_CHANGE",
+  "promotion_fingerprint": "d55278e70f362cbacb3c84624e570d2663308072b9f674de334c5258bd2e564f"
+}

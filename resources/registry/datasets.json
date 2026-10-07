@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "datasets": {
+    "vimd": {
+      "dataset_spec": "resources/datasets/vimd.json",
+      "semantic_catalog": "resources/semantics/vimd_semantic_catalog.json",
+      "type_registry": "resources/semantics/vimd_type_registry.json",
+      "production_contract": "resources/production/vimd.json",
+      "promotion_manifest": "resources/production/vimd.promotion.json"
+    },
+    "vietmdd": {
+      "dataset_spec": "resources/datasets/vietmdd.json",
+      "semantic_catalog": "resources/semantics/vietmdd_semantic_catalog.json",
+      "production_contract": "resources/production/vietmdd.json",
+      "promotion_manifest": "resources/production/vietmdd.promotion.json"
+    },
+    "vimedcss": {
+      "dataset_spec": "resources/datasets/vimedcss.json",
+      "semantic_catalog": "resources/semantics/vimedcss_semantic_catalog.json",
+      "production_contract": "resources/production/vimedcss.json",
+      "promotion_manifest": "resources/production/vimedcss.promotion.json"
+    }
+  }
+}

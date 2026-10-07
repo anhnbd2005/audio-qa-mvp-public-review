@@ -1,0 +1,20 @@
+{
+  "round": 2,
+  "accepted_new": [
+    {
+      "type_id": "QS_R2_05",
+      "keep_template_ids": [
+        "T_R2_05_01"
+      ]
+    },
+    {
+      "type_id": "QS_R2_06",
+      "keep_template_ids": [
+        "T_R2_06_01",
+        "T_R2_06_01_P01"
+      ]
+    }
+  ],
+  "duplicates": [],
+  "rejected": []
+}

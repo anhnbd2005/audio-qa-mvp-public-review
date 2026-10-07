@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "resource_id": "vietlyrics_source",
+  "version": "vietlyrics_source_v1",
+  "source_name": "VietLyrics",
+  "repo": "BatmanofZuhandArrgh/VietLyrics",
+  "provider": "github",
+  "revision": "d52817ad9f63c4e1bdb7f77991e122a919d5dcf6",
+  "train": {
+    "source_path": "data/train_7k_metadata_authors.csv",
+    "local_cache_path": "data/materialized/vietlyrics/_cache/d52817ad9f63c4e1bdb7f77991e122a919d5dcf6/train_7k_metadata_authors.csv",
+    "bytes": 1747425,
+    "sha256": "bdcbe18eb995ae83cbb8406fb781feec26c32e13d8da8066977ed4c7e13bd0fb",
+    "git_blob_sha1": "3179a6ebaa7dfa72a4616c14ff056928a46a6607",
+    "parsed_row_count": 7433
+  },
+  "validation": {
+    "source_path": "data/val_1k_metadata_authors.csv",
+    "local_cache_path": "data/materialized/vietlyrics/_cache/d52817ad9f63c4e1bdb7f77991e122a919d5dcf6/val_1k_metadata_authors.csv",
+    "bytes": 236077,
+    "sha256": "77b9027d35df817a404ab23f3698108c48672e0828a5b79ec86543fa574603e0",
+    "git_blob_sha1": "e274a0ed215e56e4fdb3cb759627d63c1f7ed378",
+    "parsed_row_count": 995
+  },
+  "schema": [
+    "song",
+    "link",
+    "prefix",
+    "title",
+    "genre",
+    "artist",
+    "token_count",
+    "wpm",
+    "duration_mins",
+    "loibaihat_authors",
+    "lyricvn_authors"
+  ],
+  "relevant_fields": ["song", "link", "wpm", "duration_mins"],
+  "parser": {
+    "version": "vietlyrics_source_parser_v1",
+    "format": "csv",
+    "zing_id_rule": "final path component before .html",
+    "wpm_rule": "strict finite positive float"
+  },
+  "integrity_authority": "sha256",
+  "git_blob_sha1_note": "provenance only; sha256 of raw downloaded bytes is authoritative",
+  "forbidden_source_note": "vietlyrics_selected_clean_manifest.csv is historical diagnostic material and must not be used as source",
+  "verify_before_generation": true
+}

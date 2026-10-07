@@ -1,0 +1,43 @@
+# Production QA generation config (zero-LLM runtime).
+# Release-specific budgets must be chosen explicitly; leaving both
+# total_target_qa and per_type_budget null yields READY_AWAITING_BUDGET.
+seed: 42
+total_target_qa: null
+per_type_budget: null
+per_language_pattern_budget: null
+max_audio_reuse: null
+max_source_row_reuse: null
+target_value_frequency_cap: null
+positive_negative_ratio: null
+selection_a_b_ratio: null
+dedup_policy: null
+language_preflight_artifact: data/materialized/language_preflight/vimd/current
+
+# --- production generator ---
+strict_budget: true
+allocation_policy: equal_by_type
+
+sampling:
+  value_sampling: uniform_over_values
+  max_source_row_reuse: null
+  max_source_row_reuse_per_type: null
+  prefer_distinct_speaker: true
+  hidden_identifier_field: speakerID
+  max_sampling_attempts: 64
+
+boolean:
+  positive_ratio: 0.5
+
+selection:
+  randomized_position: true
+
+text_negative:
+  length_bucket_match: true
+
+language:
+  variants_per_semantic_instance: 1
+  selection: deterministic_sha256
+
+audio:
+  materialize: false
+  local_root: null

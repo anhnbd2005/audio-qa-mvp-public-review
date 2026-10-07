@@ -1,0 +1,241 @@
+{
+  "dataset": "vietmdd",
+  "catalog_version": "vietmdd_semantic_catalog_v3_composite_leakage_repair",
+  "comparators_resource": "comparators.json",
+  "tasks": [
+    {
+      "type_id": "vietmdd_direct_observed_text",
+      "proposition_id": "direct_observed_transcription",
+      "proposition_description": "The audio is transcribed directly into its observed spoken textual content.",
+      "operator": "DIRECT",
+      "classification": "PRIMITIVE_RELATION",
+      "kind": "ATOMIC",
+      "audio_arity": 1,
+      "visible_context_roles": [],
+      "source_role_mapping": {
+        "output_role": "observed_transcription",
+        "source_field": "observed_transcription_norm"
+      },
+      "outputs": [
+        {
+          "role": "observed_transcription",
+          "kind": "field_value",
+          "dependencies": []
+        }
+      ],
+      "dependency_graph": [],
+      "comparator_id": null,
+      "invariances": [],
+      "non_invariances": [],
+      "base_type_id": null,
+      "evaluation_value": "direct transcription"
+    },
+    {
+      "type_id": "vietmdd_target_match_observed_text",
+      "proposition_id": "spoken_content_matches_candidate",
+      "proposition_description": "The spoken content in the audio matches the visible candidate target text.",
+      "operator": "TARGET_MATCH",
+      "classification": "PRIMITIVE_RELATION",
+      "kind": "ATOMIC",
+      "audio_arity": 1,
+      "visible_context_roles": [
+        "candidate_target_text"
+      ],
+      "source_role_mapping": {
+        "output_role": "observed_transcription",
+        "source_field": "observed_transcription_norm"
+      },
+      "outputs": [
+        {
+          "role": "observed_transcription",
+          "kind": "boolean",
+          "dependencies": []
+        }
+      ],
+      "dependency_graph": [],
+      "comparator_id": "exact_normalized_text",
+      "invariances": [
+        "surrounding_whitespace",
+        "repeated_whitespace"
+      ],
+      "non_invariances": [
+        "letter_case",
+        "presentation_punctuation",
+        "vietnamese_diacritics_and_tones",
+        "lexical_change"
+      ],
+      "base_type_id": null,
+      "evaluation_value": "candidate match (audited 0 flips under spoken comparator; unchanged this milestone)"
+    },
+    {
+      "type_id": "vietmdd_spoken_content_matches_reference",
+      "proposition_id": "spoken_content_matches_reference",
+      "proposition_description": "The lexical content spoken in the audio matches the visible reference text, ignoring purely orthographic presentation differences that are not part of the spoken lexical content.",
+      "operator": "TARGET_MATCH",
+      "classification": "PRIMITIVE_RELATION",
+      "kind": "ATOMIC",
+      "audio_arity": 1,
+      "visible_context_roles": [
+        "reference_text"
+      ],
+      "source_role_mapping": {
+        "output_role": "matches_reference",
+        "audio_field": "observed_transcription_norm",
+        "visible_field": "original_text_norm"
+      },
+      "outputs": [
+        {
+          "role": "matches_reference",
+          "kind": "boolean",
+          "dependencies": []
+        }
+      ],
+      "dependency_graph": [],
+      "comparator_id": "spoken_lexical_content_equivalence",
+      "invariances": [
+        "letter_case",
+        "surrounding_whitespace",
+        "repeated_whitespace",
+        "presentation_punctuation_insertion_or_removal"
+      ],
+      "non_invariances": [
+        "vietnamese_diacritics_and_tones",
+        "letter_substitution",
+        "word_insertion",
+        "word_deletion",
+        "word_reordering",
+        "numeric_change"
+      ],
+      "base_type_id": null,
+      "evaluation_value": "spoken content matches visible reference (repaired)"
+    },
+    {
+      "type_id": "vietmdd_equality_observed_text",
+      "proposition_id": "spoken_content_pair_equality",
+      "proposition_description": "The two audios carry the same spoken lexical content.",
+      "operator": "EQUALITY",
+      "classification": "PRIMITIVE_RELATION",
+      "kind": "ATOMIC",
+      "audio_arity": 2,
+      "visible_context_roles": [],
+      "source_role_mapping": {
+        "output_role": "observed_transcription",
+        "source_field": "observed_transcription_norm"
+      },
+      "outputs": [
+        {
+          "role": "observed_transcription",
+          "kind": "boolean",
+          "dependencies": []
+        }
+      ],
+      "dependency_graph": [],
+      "comparator_id": "exact_normalized_text",
+      "invariances": [
+        "surrounding_whitespace",
+        "repeated_whitespace"
+      ],
+      "non_invariances": [
+        "letter_case",
+        "presentation_punctuation",
+        "vietnamese_diacritics_and_tones",
+        "lexical_change"
+      ],
+      "base_type_id": null,
+      "evaluation_value": "pair equality (audited 0 flips; unchanged this milestone)"
+    },
+    {
+      "type_id": "vietmdd_selection_observed_text",
+      "proposition_id": "spoken_content_pair_selection",
+      "proposition_description": "Among two audios, identify which one carries the spoken content matching the visible target text.",
+      "operator": "PAIRWISE_SELECTION",
+      "classification": "PRIMITIVE_RELATION",
+      "kind": "ATOMIC",
+      "audio_arity": 2,
+      "visible_context_roles": [
+        "target_text"
+      ],
+      "source_role_mapping": {
+        "output_role": "observed_transcription",
+        "source_field": "observed_transcription_norm"
+      },
+      "outputs": [
+        {
+          "role": "observed_transcription",
+          "kind": "audio_index",
+          "dependencies": []
+        }
+      ],
+      "dependency_graph": [],
+      "comparator_id": "exact_normalized_text",
+      "invariances": [
+        "surrounding_whitespace",
+        "repeated_whitespace"
+      ],
+      "non_invariances": [
+        "letter_case",
+        "presentation_punctuation",
+        "vietnamese_diacritics_and_tones",
+        "lexical_change"
+      ],
+      "base_type_id": null,
+      "evaluation_value": "pair selection (audited 0 flips; unchanged this milestone)"
+    },
+    {
+      "type_id": "vietmdd_composite_transcribe_pair_equality",
+      "proposition_id": "structured_transcribe_then_pair_equality",
+      "proposition_description": "Transcribe both audios, then judge whether their spoken lexical content is the same.",
+      "operator": "COMPOSITE",
+      "classification": "CHAIN_DERIVED",
+      "kind": "STRUCTURED",
+      "audio_arity": 2,
+      "visible_context_roles": [],
+      "source_role_mapping": {
+        "base_type_id": "vietmdd_equality_observed_text"
+      },
+      "outputs": [
+        {
+          "role": "observed_transcription_a",
+          "kind": "field_value",
+          "dependencies": []
+        },
+        {
+          "role": "observed_transcription_b",
+          "kind": "field_value",
+          "dependencies": []
+        },
+        {
+          "role": "same_observed_content",
+          "kind": "boolean",
+          "dependencies": [
+            "observed_transcription_a",
+            "observed_transcription_b"
+          ]
+        }
+      ],
+      "dependency_graph": [
+        [
+          "observed_transcription_a",
+          "same_observed_content"
+        ],
+        [
+          "observed_transcription_b",
+          "same_observed_content"
+        ]
+      ],
+      "comparator_id": "exact_normalized_text",
+      "invariances": [
+        "surrounding_whitespace",
+        "repeated_whitespace"
+      ],
+      "non_invariances": [
+        "letter_case",
+        "presentation_punctuation",
+        "vietnamese_diacritics_and_tones",
+        "lexical_change"
+      ],
+      "base_type_id": "vietmdd_equality_observed_text",
+      "evaluation_value": "transcribe both + equality (unchanged this milestone)"
+    }
+  ]
+}

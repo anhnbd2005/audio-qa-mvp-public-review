@@ -1,0 +1,20 @@
+{
+  "compatibility_modes": [],
+  "contract_id": "canonical_renderer",
+  "language": "vi",
+  "normalization": {
+    "collapse_whitespace": true,
+    "strip_surrounding_whitespace": true
+  },
+  "slot_ownership": {
+    "surrounding_grammar": "language_entry",
+    "target_presentation_quotes": "language_entry",
+    "target_value": "semantic_value",
+    "terminal_punctuation": "language_entry_with_boundary_normalization"
+  },
+  "target_binding": {
+    "bind_exactly_once": true,
+    "preserve_internal_quotes": true,
+    "strip_one_balanced_outer_quote_pair_for_quoted_targets": true
+  }
+}

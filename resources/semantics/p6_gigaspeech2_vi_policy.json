@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "resource_id": "p6_gigaspeech2_vi_policy",
+  "version": "p6_gigaspeech2_vi_policy_v1",
+  "task": "P6",
+  "semantic_type": "automatic_speech_recognition",
+  "benchmark_category": "perception",
+  "benchmark_type": "general",
+  "gold_origin": "SOURCE",
+  "compiler_tier": "T1_PERCEPTION",
+  "seed": 42,
+  "source": {
+    "dataset": "GigaSpeech2-VI",
+    "repo_id": "speechcolab/gigaspeech2",
+    "revision": "8dc0d0e502b7e6d5649a13cd4b677cf10c0b21e3",
+    "filename": "data/vi/train_refined.tsv",
+    "split": "train_refined",
+    "language": "vi",
+    "segment_id_field": "segment_id",
+    "text_field": "text"
+  },
+  "answer_policy": {
+    "gold": "exact source transcript",
+    "choice_count": 4,
+    "distractor_count": 3,
+    "distractor_source": "other eligible GigaSpeech2-VI train_refined rows",
+    "distractor_uniqueness": "comparator_distinct_from_gold_and_each_other",
+    "mutate_gold": false,
+    "hard_negative_mining": false
+  },
+  "length_buckets": ["1-5", "6-10", "11-20", "21-40", "41-80", ">80"],
+  "length_bucket_policy": "same bucket, then adjacent buckets by distance, then global",
+  "audio_id_namespace": "gigaspeech2_vi/train_refined",
+  "template_bank": [
+    {
+      "template_id": "p6_t01",
+      "text": "Phương án nào là bản chép lời đúng của đoạn âm thanh?"
+    },
+    {
+      "template_id": "p6_t02",
+      "text": "Hãy chọn bản chép lời chính xác nhất cho đoạn audio."
+    },
+    {
+      "template_id": "p6_t03",
+      "text": "Nội dung nào khớp với lời nói trong đoạn âm thanh?"
+    },
+    {
+      "template_id": "p6_t04",
+      "text": "Người nói trong đoạn audio đã nói nội dung nào dưới đây?"
+    },
+    {
+      "template_id": "p6_t05",
+      "text": "Bản chép nào phù hợp nhất với đoạn âm thanh?"
+    },
+    {
+      "template_id": "p6_t06",
+      "text": "Hãy xác định nội dung được nói trong đoạn audio."
+    }
+  ]
+}

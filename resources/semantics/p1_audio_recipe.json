@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "recipe_id": "vimd_p1_pair_beep_v1",
+  "provenance": "REUSED_EXISTING_PROJECT_RECIPE",
+  "note": "Exact separator recipe already frozen by the SAUVI speaker-composite v2 pipeline. Reused verbatim; not inferred from any text manifest. Construction parameters, not benchmark facts.",
+  "reused_from": [
+    "VietnameseSpeechQABenchmark/scripts/speaker_composite_v2_core.py: generate_separator / assemble_composite_wav",
+    "VietnameseSpeechQABenchmark/scripts/build_speaker_verification_composite_v2.py: generate_separator / build_composite_wav",
+    "VietnameseSpeechQABenchmark/experiments/speaker_composite_reasoning_v2/provenance/*.jsonl: separator_spec"
+  ],
+  "sample_rate": 48000,
+  "sample_rate_policy": "preserve_native",
+  "channels": "mono",
+  "channel_policy": "preserve_native",
+  "speech_preparation": {
+    "decode": true,
+    "to_mono": false,
+    "resample_hz": null
+  },
+  "separator": {
+    "type": "sine",
+    "pre_silence_ms": 300,
+    "beep_duration_ms": 500,
+    "post_silence_ms": 300,
+    "beep_frequency_hz": 1000.0,
+    "peak_amplitude": 0.2,
+    "fade_ms": 10
+  },
+  "composition": [
+    "speech_A",
+    "separator",
+    "speech_B"
+  ],
+  "clip": {
+    "min": -1.0,
+    "max": 1.0
+  },
+  "augmentation": false,
+  "speed_pitch_change": false
+}

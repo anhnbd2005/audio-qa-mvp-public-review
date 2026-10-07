@@ -1,0 +1,13 @@
+templates_per_type: 3
+preview_instances_per_template: 8
+promotion_min_valid_preview: 5
+seed: 42
+sampler:
+  max_instances_per_type: 10000
+  max_instances_per_template: 3000
+  max_instances_per_audio: 20
+  positive_ratio: 0.5
+  negative_ratio: 0.5
+  selection_balance_A_B: true
+  target_frequency_cap: 500
+  speaker_frequency_cap: 500

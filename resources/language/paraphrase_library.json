@@ -1,0 +1,638 @@
+{
+  "language": "vi",
+  "version": "canonical",
+  "schema_version": 1,
+  "source_template_library": "canonical",
+  "source_template_library_sha256": "290e99933d713bdbbd1794c497577c0b90a48b82ce29fe98b644950331db7b8b",
+  "generation_model": "ag/gemini-3.6-flash-low",
+  "generation_endpoint_class": "local_openai_compatible",
+  "created_from_calls": [
+    "direct_01",
+    "equality_01",
+    "pairwise_selection_01",
+    "target_match_01"
+  ],
+  "library_hash": "3d5fd4f86a2f18614cac5fd2bacd553dd9a7e3038c7c8678732f6d5fcb744922",
+  "paraphrases": [
+    {
+      "paraphrase_id": "vp1_vi1_dir_cat_01_01",
+      "source_blueprint_id": "vi1_dir_cat_01",
+      "language": "vi",
+      "operator": "DIRECT",
+      "semantic_class": "categorical_attribute",
+      "pattern": "Qua giọng của [ENTITY_PHRASE] trong đoạn âm thanh này, hãy cho biết [ATTRIBUTE_PHRASE].",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "field_value",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "1b55a175d752466e5704cd771850343effd55f91005f120cb72f59789cb9e718",
+      "generation_provenance": {
+        "llm_call_id": "direct_01",
+        "prompt_hash": "9abe18dd9791af1e3f99ac6234523cae67210cabf83a75882ea23a5f34ce04f5"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_dir_cat_02_02",
+      "source_blueprint_id": "vi1_dir_cat_02",
+      "language": "vi",
+      "operator": "DIRECT",
+      "semantic_class": "categorical_attribute",
+      "pattern": "Xin vui lòng chỉ ra [ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] trong file âm thanh.",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "field_value",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "1b55a175d752466e5704cd771850343effd55f91005f120cb72f59789cb9e718",
+      "generation_provenance": {
+        "llm_call_id": "direct_01",
+        "prompt_hash": "9abe18dd9791af1e3f99ac6234523cae67210cabf83a75882ea23a5f34ce04f5"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_dir_cat_03_03",
+      "source_blueprint_id": "vi1_dir_cat_03",
+      "language": "vi",
+      "operator": "DIRECT",
+      "semantic_class": "categorical_attribute",
+      "pattern": "Căn cứ vào đoạn âm thanh, hãy cho biết [ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] là gì.",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "field_value",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "1b55a175d752466e5704cd771850343effd55f91005f120cb72f59789cb9e718",
+      "generation_provenance": {
+        "llm_call_id": "direct_01",
+        "prompt_hash": "9abe18dd9791af1e3f99ac6234523cae67210cabf83a75882ea23a5f34ce04f5"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_dir_num_01_04",
+      "source_blueprint_id": "vi1_dir_num_01",
+      "language": "vi",
+      "operator": "DIRECT",
+      "semantic_class": "numeric_attribute",
+      "pattern": "Trong đoạn âm thanh, [ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] đạt giá trị bao nhiêu [UNIT]?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]",
+        "[UNIT]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "field_value",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "d0f8f8c12c04007f335fc8590fccbe7db571f7bd80668e894afb5b91ebd674cd",
+      "generation_provenance": {
+        "llm_call_id": "direct_01",
+        "prompt_hash": "9abe18dd9791af1e3f99ac6234523cae67210cabf83a75882ea23a5f34ce04f5"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_dir_num_02_05",
+      "source_blueprint_id": "vi1_dir_num_02",
+      "language": "vi",
+      "operator": "DIRECT",
+      "semantic_class": "numeric_attribute",
+      "pattern": "Vui lòng chỉ ra chính xác [ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] theo đơn vị [UNIT] từ đoạn âm thanh.",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]",
+        "[UNIT]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "field_value",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "d0f8f8c12c04007f335fc8590fccbe7db571f7bd80668e894afb5b91ebd674cd",
+      "generation_provenance": {
+        "llm_call_id": "direct_01",
+        "prompt_hash": "9abe18dd9791af1e3f99ac6234523cae67210cabf83a75882ea23a5f34ce04f5"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_dir_num_03_06",
+      "source_blueprint_id": "vi1_dir_num_03",
+      "language": "vi",
+      "operator": "DIRECT",
+      "semantic_class": "numeric_attribute",
+      "pattern": "Con số cụ thể cho [ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] trong đoạn âm thanh là bao nhiêu?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "field_value",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "f0ec04246f7d173503e3a1493adbb7a9072c6faf38f35c5b0f514dd8de081adb",
+      "generation_provenance": {
+        "llm_call_id": "direct_01",
+        "prompt_hash": "9abe18dd9791af1e3f99ac6234523cae67210cabf83a75882ea23a5f34ce04f5"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_dir_text_01_07",
+      "source_blueprint_id": "vi1_dir_text_01",
+      "language": "vi",
+      "operator": "DIRECT",
+      "semantic_class": "text_content",
+      "pattern": "Vui lòng chép lại toàn bộ [CONTENT_PHRASE] trong đoạn âm thanh.",
+      "required_slots": [
+        "[CONTENT_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "field_value",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "b46de93fc1914509dbe147f739f523e21e551a3bd4911f9f4837cbc0d73d31f3",
+      "generation_provenance": {
+        "llm_call_id": "direct_01",
+        "prompt_hash": "9abe18dd9791af1e3f99ac6234523cae67210cabf83a75882ea23a5f34ce04f5"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_dir_text_02_08",
+      "source_blueprint_id": "vi1_dir_text_02",
+      "language": "vi",
+      "operator": "DIRECT",
+      "semantic_class": "text_content",
+      "pattern": "Hãy ghi lại đầy đủ [CONTENT_PHRASE] trong đoạn âm thanh này.",
+      "required_slots": [
+        "[CONTENT_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "field_value",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "b46de93fc1914509dbe147f739f523e21e551a3bd4911f9f4837cbc0d73d31f3",
+      "generation_provenance": {
+        "llm_call_id": "direct_01",
+        "prompt_hash": "9abe18dd9791af1e3f99ac6234523cae67210cabf83a75882ea23a5f34ce04f5"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_eq_cat_01_01",
+      "source_blueprint_id": "vi1_eq_cat_01",
+      "language": "vi",
+      "operator": "EQUALITY",
+      "semantic_class": "categorical_attribute",
+      "pattern": "Liệu hai đoạn âm thanh này có chung [ATTRIBUTE_PHRASE] hay không?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "99c6620d32f117a0c0f5b23ac322edf2c682c41be0986c544e15733db80fb30a",
+      "generation_provenance": {
+        "llm_call_id": "equality_01",
+        "prompt_hash": "bf09643cbf9635f4cfea3a89488d59fdac5c273a12ce2490eb8979cf183e9539"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_eq_cat_02_02",
+      "source_blueprint_id": "vi1_eq_cat_02",
+      "language": "vi",
+      "operator": "EQUALITY",
+      "semantic_class": "categorical_attribute",
+      "pattern": "Liệu [ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] ở hai đoạn âm thanh này có đồng nhất không?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "a63fb86945d1965889226914f7f490224516594536f95f9c363d47f72e689469",
+      "generation_provenance": {
+        "llm_call_id": "equality_01",
+        "prompt_hash": "bf09643cbf9635f4cfea3a89488d59fdac5c273a12ce2490eb8979cf183e9539"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_eq_num_01_03",
+      "source_blueprint_id": "vi1_eq_num_01",
+      "language": "vi",
+      "operator": "EQUALITY",
+      "semantic_class": "numeric_attribute",
+      "pattern": "Liệu hai đoạn âm thanh có cùng chỉ số [ATTRIBUTE_PHRASE] không?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "ef6d8590547bde6e7d2587060b8323c6697c542bcf0eff8390ab1f8c5080a098",
+      "generation_provenance": {
+        "llm_call_id": "equality_01",
+        "prompt_hash": "bf09643cbf9635f4cfea3a89488d59fdac5c273a12ce2490eb8979cf183e9539"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_eq_num_02_04",
+      "source_blueprint_id": "vi1_eq_num_02",
+      "language": "vi",
+      "operator": "EQUALITY",
+      "semantic_class": "numeric_attribute",
+      "pattern": "[ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] giữa hai đoạn âm thanh có như nhau không?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "cc71572010abb63a4f572abdc1c97aae17c331d5b73badf6894134286e16328b",
+      "generation_provenance": {
+        "llm_call_id": "equality_01",
+        "prompt_hash": "bf09643cbf9635f4cfea3a89488d59fdac5c273a12ce2490eb8979cf183e9539"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_eq_text_01_05",
+      "source_blueprint_id": "vi1_eq_text_01",
+      "language": "vi",
+      "operator": "EQUALITY",
+      "semantic_class": "text_content",
+      "pattern": "Liệu [CONTENT_PHRASE] trong hai đoạn âm thanh có giống nhau hay không?",
+      "required_slots": [
+        "[CONTENT_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "672e1ca91b8c23a176f8a0252d645e18560c7a4576a07c8269e9268085d66d02",
+      "generation_provenance": {
+        "llm_call_id": "equality_01",
+        "prompt_hash": "bf09643cbf9635f4cfea3a89488d59fdac5c273a12ce2490eb8979cf183e9539"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_eq_text_02_06",
+      "source_blueprint_id": "vi1_eq_text_02",
+      "language": "vi",
+      "operator": "EQUALITY",
+      "semantic_class": "text_content",
+      "pattern": "[CONTENT_PHRASE] xuất hiện trong hai đoạn âm thanh có hoàn toàn giống nhau không?",
+      "required_slots": [
+        "[CONTENT_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "672e1ca91b8c23a176f8a0252d645e18560c7a4576a07c8269e9268085d66d02",
+      "generation_provenance": {
+        "llm_call_id": "equality_01",
+        "prompt_hash": "bf09643cbf9635f4cfea3a89488d59fdac5c273a12ce2490eb8979cf183e9539"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_sel_cat_01_01",
+      "source_blueprint_id": "vi1_sel_cat_01",
+      "language": "vi",
+      "operator": "PAIRWISE_SELECTION",
+      "semantic_class": "categorical_attribute",
+      "pattern": "Với mục tiêu là [TARGET_VALUE], hãy xác định đoạn âm thanh nào giữa A và B có [ATTRIBUTE_PHRASE] trùng khớp với giá trị này.",
+      "required_slots": [
+        "[TARGET_VALUE]",
+        "[ATTRIBUTE_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "audio_index",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "65684329d386ae4697a7282aa700e8d6f76023983c554c61ccc2017177da7c3b",
+      "generation_provenance": {
+        "llm_call_id": "pairwise_selection_01",
+        "prompt_hash": "ff9eb8b85528c2970635bb99e070a7923f70714f3149f74fc7f581fbb49459b2"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_sel_cat_02_02",
+      "source_blueprint_id": "vi1_sel_cat_02",
+      "language": "vi",
+      "operator": "PAIRWISE_SELECTION",
+      "semantic_class": "categorical_attribute",
+      "pattern": "Giữa hai đoạn âm thanh A và B, cho biết đoạn nào có [ATTRIBUTE_PHRASE] chính xác là [TARGET_VALUE].",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "audio_index",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "65684329d386ae4697a7282aa700e8d6f76023983c554c61ccc2017177da7c3b",
+      "generation_provenance": {
+        "llm_call_id": "pairwise_selection_01",
+        "prompt_hash": "ff9eb8b85528c2970635bb99e070a7923f70714f3149f74fc7f581fbb49459b2"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_sel_num_01_03",
+      "source_blueprint_id": "vi1_sel_num_01",
+      "language": "vi",
+      "operator": "PAIRWISE_SELECTION",
+      "semantic_class": "numeric_attribute",
+      "pattern": "Xét hai đoạn âm thanh A và B, đoạn âm thanh nào có [ATTRIBUTE_PHRASE] đạt đúng [TARGET_VALUE] [UNIT]?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[TARGET_VALUE]",
+        "[UNIT]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "audio_index",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "6533e749b9233b8819f72126c83a329b5f2570ed2370e6e2e9cb5b6addea5211",
+      "generation_provenance": {
+        "llm_call_id": "pairwise_selection_01",
+        "prompt_hash": "ff9eb8b85528c2970635bb99e070a7923f70714f3149f74fc7f581fbb49459b2"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_sel_num_02_04",
+      "source_blueprint_id": "vi1_sel_num_02",
+      "language": "vi",
+      "operator": "PAIRWISE_SELECTION",
+      "semantic_class": "numeric_attribute",
+      "pattern": "Cho giá trị mục tiêu là [TARGET_VALUE] [UNIT], hãy chọn đoạn âm thanh A hay B có [ATTRIBUTE_PHRASE] khớp chính xác với mục tiêu trên.",
+      "required_slots": [
+        "[TARGET_VALUE]",
+        "[UNIT]",
+        "[ATTRIBUTE_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "audio_index",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "6533e749b9233b8819f72126c83a329b5f2570ed2370e6e2e9cb5b6addea5211",
+      "generation_provenance": {
+        "llm_call_id": "pairwise_selection_01",
+        "prompt_hash": "ff9eb8b85528c2970635bb99e070a7923f70714f3149f74fc7f581fbb49459b2"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_sel_num_03_05",
+      "source_blueprint_id": "vi1_sel_num_03",
+      "language": "vi",
+      "operator": "PAIRWISE_SELECTION",
+      "semantic_class": "numeric_attribute",
+      "pattern": "Trong hai đoạn âm thanh A và B, đoạn nào ghi nhận [ATTRIBUTE_PHRASE] chính xác bằng [TARGET_VALUE]?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "audio_index",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "08453c1e313332106b0d663e93f61e8d3c11b6ade149cf2455ca12a955471587",
+      "generation_provenance": {
+        "llm_call_id": "pairwise_selection_01",
+        "prompt_hash": "ff9eb8b85528c2970635bb99e070a7923f70714f3149f74fc7f581fbb49459b2"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_sel_text_01_06",
+      "source_blueprint_id": "vi1_sel_text_01",
+      "language": "vi",
+      "operator": "PAIRWISE_SELECTION",
+      "semantic_class": "text_content",
+      "pattern": "Nội dung mục tiêu là “[TARGET_VALUE]”. Hãy cho biết đoạn âm thanh nào trong hai đoạn A và B có đúng nội dung này?",
+      "required_slots": [
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "audio_index",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "a1132df68f3470c48e97e6ebb10af2c72611c9bd6b1bfd905cf59a2a3fceba11",
+      "generation_provenance": {
+        "llm_call_id": "pairwise_selection_01",
+        "prompt_hash": "ff9eb8b85528c2970635bb99e070a7923f70714f3149f74fc7f581fbb49459b2"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_sel_text_02_07",
+      "source_blueprint_id": "vi1_sel_text_02",
+      "language": "vi",
+      "operator": "PAIRWISE_SELECTION",
+      "semantic_class": "text_content",
+      "pattern": "Khi so sánh hai đoạn âm thanh A và B, đoạn nào có [CONTENT_PHRASE] khớp hoàn toàn với “[TARGET_VALUE]”?",
+      "required_slots": [
+        "[CONTENT_PHRASE]",
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "audio_index",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "5bfebd36192e67b4f03a5d49a4262fdf42e7cd2af9d9855d9d8d0740915eb7a7",
+      "generation_provenance": {
+        "llm_call_id": "pairwise_selection_01",
+        "prompt_hash": "ff9eb8b85528c2970635bb99e070a7923f70714f3149f74fc7f581fbb49459b2"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_tm_cat_01_01",
+      "source_blueprint_id": "vi1_tm_cat_01",
+      "language": "vi",
+      "operator": "TARGET_MATCH",
+      "semantic_class": "categorical_attribute",
+      "pattern": "Liệu [ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] trong đoạn âm thanh có trùng khớp với giá trị mục tiêu là [TARGET_VALUE] không?",
+      "required_slots": [
+        "[TARGET_VALUE]",
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "b73bffb943fd324e8fd527e5b49060e700930a246df3ca403a3b8350a58e7798",
+      "generation_provenance": {
+        "llm_call_id": "target_match_01",
+        "prompt_hash": "65b6d2ae0a90cdcc1320cef956dcb38f3a61a0c1e89d6d0a16fcc84a52a68c8c"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_tm_cat_02_02",
+      "source_blueprint_id": "vi1_tm_cat_02",
+      "language": "vi",
+      "operator": "TARGET_MATCH",
+      "semantic_class": "categorical_attribute",
+      "pattern": "Có đúng là [ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] trong đoạn âm thanh có giá trị là [TARGET_VALUE] không?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]",
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "b73bffb943fd324e8fd527e5b49060e700930a246df3ca403a3b8350a58e7798",
+      "generation_provenance": {
+        "llm_call_id": "target_match_01",
+        "prompt_hash": "65b6d2ae0a90cdcc1320cef956dcb38f3a61a0c1e89d6d0a16fcc84a52a68c8c"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_tm_num_01_03",
+      "source_blueprint_id": "vi1_tm_num_01",
+      "language": "vi",
+      "operator": "TARGET_MATCH",
+      "semantic_class": "numeric_attribute",
+      "pattern": "[ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] trong đoạn âm thanh có đạt chính xác [TARGET_VALUE] [UNIT] hay không?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]",
+        "[TARGET_VALUE]",
+        "[UNIT]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "b5d1f358fcc4c68c2fcc2b07bfd9119af8c2b866463d04caea5a8340a015de24",
+      "generation_provenance": {
+        "llm_call_id": "target_match_01",
+        "prompt_hash": "65b6d2ae0a90cdcc1320cef956dcb38f3a61a0c1e89d6d0a16fcc84a52a68c8c"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_tm_num_02_04",
+      "source_blueprint_id": "vi1_tm_num_02",
+      "language": "vi",
+      "operator": "TARGET_MATCH",
+      "semantic_class": "numeric_attribute",
+      "pattern": "Xét mức mục tiêu [TARGET_VALUE] [UNIT], liệu [ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] có đạt đúng giá trị này hay không?",
+      "required_slots": [
+        "[TARGET_VALUE]",
+        "[UNIT]",
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "b5d1f358fcc4c68c2fcc2b07bfd9119af8c2b866463d04caea5a8340a015de24",
+      "generation_provenance": {
+        "llm_call_id": "target_match_01",
+        "prompt_hash": "65b6d2ae0a90cdcc1320cef956dcb38f3a61a0c1e89d6d0a16fcc84a52a68c8c"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_tm_num_03_05",
+      "source_blueprint_id": "vi1_tm_num_03",
+      "language": "vi",
+      "operator": "TARGET_MATCH",
+      "semantic_class": "numeric_attribute",
+      "pattern": "Có đúng [ATTRIBUTE_PHRASE] của [ENTITY_PHRASE] trong đoạn âm thanh là [TARGET_VALUE] không?",
+      "required_slots": [
+        "[ATTRIBUTE_PHRASE]",
+        "[ENTITY_PHRASE]",
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "0759ca6dd969c23b7a8098832e646ea15b50589d2532a78c94be04da6a3a98cf",
+      "generation_provenance": {
+        "llm_call_id": "target_match_01",
+        "prompt_hash": "65b6d2ae0a90cdcc1320cef956dcb38f3a61a0c1e89d6d0a16fcc84a52a68c8c"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_tm_text_01_06",
+      "source_blueprint_id": "vi1_tm_text_01",
+      "language": "vi",
+      "operator": "TARGET_MATCH",
+      "semantic_class": "text_content",
+      "pattern": "Có phải [CONTENT_PHRASE] trong đoạn âm thanh này chính xác là “[TARGET_VALUE]” không?",
+      "required_slots": [
+        "[CONTENT_PHRASE]",
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "5c564597eacd91105f5918bf8fdc2b0303208f7a96e826638395944f607e59e0",
+      "generation_provenance": {
+        "llm_call_id": "target_match_01",
+        "prompt_hash": "65b6d2ae0a90cdcc1320cef956dcb38f3a61a0c1e89d6d0a16fcc84a52a68c8c"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    },
+    {
+      "paraphrase_id": "vp1_vi1_tm_text_02_07",
+      "source_blueprint_id": "vi1_tm_text_02",
+      "language": "vi",
+      "operator": "TARGET_MATCH",
+      "semantic_class": "text_content",
+      "pattern": "Liệu [CONTENT_PHRASE] trong đoạn âm thanh có trùng khớp hoàn toàn với văn bản mục tiêu “[TARGET_VALUE]” không?",
+      "required_slots": [
+        "[CONTENT_PHRASE]",
+        "[TARGET_VALUE]"
+      ],
+      "optional_slots": [],
+      "answer_kind": "boolean",
+      "source_library_version": "canonical",
+      "semantic_contract_hash": "5c564597eacd91105f5918bf8fdc2b0303208f7a96e826638395944f607e59e0",
+      "generation_provenance": {
+        "llm_call_id": "target_match_01",
+        "prompt_hash": "65b6d2ae0a90cdcc1320cef956dcb38f3a61a0c1e89d6d0a16fcc84a52a68c8c"
+      },
+      "paraphrase_status": "PASS",
+      "reason_codes": []
+    }
+  ]
+}

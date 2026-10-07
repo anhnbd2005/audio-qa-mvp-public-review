@@ -1,0 +1,114 @@
+For each current question type, produce generic question templates.
+
+The current round question type still has: name, goal, uses, answer_rule,
+structured answer. You create question templates ONLY. Never gold values.
+
+Rules:
+- Cover exactly the given current-round question types, nothing else.
+- Reuse an existing generic template when it fits naturally, but do not
+  restrict generation to existing templates.
+- Generate new generic structures when they better express the current
+  question type.
+- Templates must remain dataset-independent wherever possible.
+- QUESTION text may contain:
+    [KEY]
+  or no placeholder at all.
+- [KEY] represents the natural Vietnamese name of the answer concept.
+  Infer it from the field description, entity_scope, and representative values
+  plus the question type name and goal.
+- [VALUE] is FORBIDDEN in question text. Gold values are resolved later
+  from the structured answer object. Never place the gold answer,
+  [VALUE], an answer placeholder, representative sample values, or a pseudo-answer suffix inside the
+  question.
+- Representative field values in context are provided SOLELY to help understand
+  field semantics linguistically. They must NEVER become question values or candidate options.
+- Do NOT force every template to use [KEY]. Slot-free templates remain
+  valid.
+- Do not introduce any other placeholders. Never invent variants like
+  [KEY_SOURCE], [KEY_TARGET], or [ANSWER_LABEL].
+- Template ids use your round prefix (e.g. T_R2_03_01).
+- Output JSON only, matching the provided response schema.
+
+Entity-Scoped Operation Families & Shared Base Templates:
+When types perform semantic equality comparison across recordings:
+- They belong to an entity-scoped family: ("equality", "semantic", entity_scope).
+- Do NOT generate separate literal equality templates for each semantic field in `templates`.
+- Instead, define shared delexicalized skeletons in `family_templates` containing exactly one [KEY] and zero [VALUE].
+- Base template IDs use BF_ prefix (e.g. BF_EQSEM_001).
+- Provide the type-specific concept realization in `key_realizations` for each member type.
+- If the prompt lists existing approved family templates from prior rounds for that signature, reuse them and provide realizations only; do not invent redundant skeletons.
+
+Family Base Skeleton Guidelines by Entity Scope:
+1. Speaker-scoped family: ("equality", "semantic", "speaker")
+   - Base skeletons must refer generically to "hai người nói", "thuộc tính [KEY] của hai người nói".
+   - Good examples:
+     * "Hai người nói trong hai đoạn âm thanh có cùng [KEY] không?"
+     * "[KEY] của hai người nói trong hai đoạn âm thanh có trùng khớp không?"
+   - Avoid overly specific subject nouns such as "giọng", "chất giọng" (not every speaker attribute is vocal timbre).
+2. Utterance-scoped family: ("equality", "semantic", "utterance")
+   - Base skeletons must refer generically to "hai phát ngôn", "nội dung/ngữ nghĩa của hai đoạn âm thanh".
+   - Good examples:
+     * "Hai phát ngôn trong hai đoạn âm thanh có cùng [KEY] không?"
+     * "[KEY] của hai phát ngôn có trùng khớp không?"
+     * "Nội dung của hai đoạn âm thanh có cùng [KEY] không?"
+   - Do NOT use "giọng người nói" or speaker-attribute subjects for utterance-scoped fields.
+
+Family Universality Test:
+Before returning a shared base, self-check:
+"If [KEY] is replaced by EVERY current family member realization, is the sentence still grammatically natural and semantically correct?"
+If NO, do NOT return that base skeleton.
+
+`key_realizations` maps QUESTION TYPE IDs to natural Vietnamese phrases
+for [KEY].
+
+- The key MUST be copied exactly from one of the input `type_id` values.
+- Do NOT use dataset column names as mapping keys.
+- Do NOT use "KEY".
+- Do NOT use Vietnamese phrases as mapping keys.
+- If a type has at least one template containing [KEY], provide exactly
+  one natural realization for that type.
+- If all templates for a type are slot-free, no realization is required
+  for that type.
+- The phrase describes the semantic answer concept, informed by the
+  dataset README + field description + entity_scope + representative values.
+
+Key Realization Self-Check:
+For every proposed [KEY] phrase, verify:
+1. Does this phrase describe the actual field meaning?
+2. Is it natural Vietnamese?
+3. Does it match the entity_scope (speaker vs utterance)?
+4. Does it make sense with representative field values?
+5. Does it avoid merely transliterating/translating the raw schema key?
+Return the phrase only if all 5 checks pass.
+
+Examples:
+
+Input type_id:
+  QS_X_01
+Goal:
+  identify speaker gender
+
+Correct:
+
+  "key_realizations": {
+    "QS_X_01": "giới tính"
+  }
+
+Input type_id:
+  QS_X_02
+Goal:
+  identify province-level dialect
+
+Correct:
+
+  "key_realizations": {
+    "QS_X_02": "phương ngữ tỉnh/thành"
+  }
+
+Wrong keys:
+
+  "gender"
+  "province"
+  "KEY"
+  "giới tính"
+  "phương ngữ tỉnh/thành"

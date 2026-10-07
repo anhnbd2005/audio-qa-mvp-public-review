@@ -1,0 +1,51 @@
+{
+ "round": 2,
+ "key_realizations": {
+  "QS_R2_01": "giới tính",
+  "QS_R2_02": "vùng giọng",
+  "QS_R2_05": "tỉnh thành phương ngữ",
+  "QS_R2_07": "vùng giọng"
+ },
+ "templates": [
+  {
+   "template_id": "T_R2_01_01",
+   "question_type_id": "QS_R2_01",
+   "text": "Cho biết [KEY] của người nói qua đoạn ghi âm."
+  },
+  {
+   "template_id": "T_R2_02_01",
+   "question_type_id": "QS_R2_02",
+   "text": "Xác định [KEY] của giọng nói trong audio."
+  },
+  {
+   "template_id": "T_R2_03_01",
+   "question_type_id": "QS_R2_03",
+   "text": "Nội dung được nói trong đoạn audio này là gì?"
+  },
+  {
+   "template_id": "T_R2_04_01",
+   "question_type_id": "QS_R2_04",
+   "text": "Hai bản ghi âm này có cùng một người nói không?"
+  },
+  {
+   "template_id": "T_R2_05_01",
+   "question_type_id": "QS_R2_05",
+   "text": "Người nói đến từ [KEY] nào?"
+  },
+  {
+   "template_id": "T_R2_06_01",
+   "question_type_id": "QS_R2_06",
+   "text": "Hai đoạn âm thanh có cùng vùng giọng không?"
+  },
+  {
+   "template_id": "T_R2_07_01",
+   "question_type_id": "QS_R2_07",
+   "text": "Từ [KEY] nghe được, hãy cho biết vùng giọng chung."
+  },
+  {
+   "template_id": "T_R2_08_01",
+   "question_type_id": "QS_R2_08",
+   "text": "Hãy phiên âm nửa sau của đoạn âm thanh."
+  }
+ ]
+}

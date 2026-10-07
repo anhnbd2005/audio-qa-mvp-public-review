@@ -1,0 +1,6 @@
+library: resources/language/template_library.json
+preview_instances_per_template: 8
+seed: 42
+minimum_templates_per_type: 2
+minimum_valid_preview_per_template: 5
+split: train

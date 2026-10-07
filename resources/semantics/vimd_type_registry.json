@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "dataset_id": "vimd",
+  "registry_version": "vimd_type_registry_v1",
+  "entries": [
+    {"internal_type_id": "vimd-v2-s1-001", "operation": {"kind": "DIRECT"}, "status": "SUPPORTED", "gold_source_fields": ["text"], "audio_input_count": 1, "visible_context_fields": [], "status_reason": null},
+    {"internal_type_id": "vimd-v2-s1-002", "operation": {"kind": "DIRECT"}, "status": "SUPPORTED", "gold_source_fields": ["region"], "audio_input_count": 1, "visible_context_fields": [], "status_reason": null},
+    {"internal_type_id": "vimd-v2-s1-003", "operation": {"kind": "DIRECT"}, "status": "SUPPORTED", "gold_source_fields": ["province_name"], "audio_input_count": 1, "visible_context_fields": [], "status_reason": null},
+    {"internal_type_id": "vimd-v2-s1-004", "operation": {"kind": "EQUALITY"}, "status": "REVIEW_REQUIRED", "gold_source_fields": ["text"], "audio_input_count": 2, "visible_context_fields": [], "status_reason": "text equality retained as review capability"},
+    {"internal_type_id": "vimd-v2-s1-005", "operation": {"kind": "EQUALITY"}, "status": "SUPPORTED", "gold_source_fields": ["region"], "audio_input_count": 2, "visible_context_fields": [], "status_reason": null},
+    {"internal_type_id": "vimd-v2-s1-006", "operation": {"kind": "EQUALITY"}, "status": "SUPPORTED", "gold_source_fields": ["province_name"], "audio_input_count": 2, "visible_context_fields": [], "status_reason": null},
+    {"internal_type_id": "vimd-v2.1-s2-001", "operation": {"kind": "EQUALITY"}, "status": "REVIEW_REQUIRED", "gold_source_fields": ["speakerID"], "audio_input_count": 2, "visible_context_fields": [], "status_reason": "hidden identifier relation is review-only"},
+    {"internal_type_id": "vimd-v2.1-s2-002", "operation": {"kind": "SELECTION"}, "status": "SUPPORTED", "gold_source_fields": ["province_name"], "audio_input_count": 2, "visible_context_fields": ["target_value"], "status_reason": null},
+    {"internal_type_id": "vimd-v2.1-s2-003", "operation": {"kind": "SELECTION"}, "status": "SUPPORTED", "gold_source_fields": ["region"], "audio_input_count": 2, "visible_context_fields": ["target_value"], "status_reason": null},
+    {"internal_type_id": "vimd-v2.1-s2-004", "operation": {"kind": "SELECTION"}, "status": "SUPPORTED", "gold_source_fields": ["text"], "audio_input_count": 2, "visible_context_fields": ["target_value"], "status_reason": null},
+    {"internal_type_id": "vimd-v2.2-s2-001", "operation": {"kind": "TARGET_MATCH"}, "status": "SUPPORTED", "gold_source_fields": ["province_name"], "audio_input_count": 1, "visible_context_fields": ["target_value"], "status_reason": null},
+    {"internal_type_id": "vimd-v2.2-s2-002", "operation": {"kind": "TARGET_MATCH"}, "status": "SUPPORTED", "gold_source_fields": ["region"], "audio_input_count": 1, "visible_context_fields": ["target_value"], "status_reason": null},
+    {"internal_type_id": "vimd-v2.2-s2-003", "operation": {"kind": "TARGET_MATCH"}, "status": "SUPPORTED", "gold_source_fields": ["text"], "audio_input_count": 1, "visible_context_fields": ["target_value"], "status_reason": null}
+  ]
+}

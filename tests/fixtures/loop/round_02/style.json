@@ -1,0 +1,133 @@
+{
+ "round": 2,
+ "question_types": [
+  {
+   "id": "QS_R2_01",
+   "name": "Speaker Sex Identification",
+   "goal": "Determine the speaker's sex from the voice.",
+   "uses": [
+    "audio",
+    "gender"
+   ],
+   "input_count": 1,
+   "answer_rule": "the gender of the speaker voice",
+   "answer": {
+    "kind": "field_value",
+    "key": "gender"
+   }
+  },
+  {
+   "id": "QS_R2_02",
+   "name": "Regional Accent Classification",
+   "goal": "Classify the regional accent heard in the recording.",
+   "uses": [
+    "audio",
+    "region"
+   ],
+   "input_count": 1,
+   "answer_rule": "the region label of the dialect voice",
+   "answer": {
+    "kind": "field_value",
+    "key": "region"
+   }
+  },
+  {
+   "id": "QS_R2_03",
+   "name": "Voice Transcription",
+   "goal": "Write down what is spoken in the clip.",
+   "uses": [
+    "audio",
+    "text"
+   ],
+   "input_count": 1,
+   "answer_rule": "transcribe the text",
+   "answer": {
+    "kind": "field_value",
+    "key": "text"
+   }
+  },
+  {
+   "id": "QS_R2_04",
+   "name": "Same Speaker Detection",
+   "goal": "Detect whether two clips share one speaker.",
+   "uses": [
+    "audio",
+    "speakerID"
+   ],
+   "input_count": 2,
+   "answer_rule": "same speakerID => yes, otherwise no",
+   "answer": {
+    "kind": "equality",
+    "keys": [
+     "speakerID_1",
+     "speakerID_2"
+    ]
+   }
+  },
+  {
+   "id": "QS_R2_05",
+   "name": "Province Identification",
+   "goal": "Identify the province-level dialect of the speaker.",
+   "uses": [
+    "audio",
+    "province"
+   ],
+   "input_count": 1,
+   "answer_rule": "the province label of the speaker",
+   "answer": {
+    "kind": "field_value",
+    "key": "province"
+   }
+  },
+  {
+   "id": "QS_R2_06",
+   "name": "Same-Dialect Verification",
+   "goal": "Decide whether two clips share one dialect region.",
+   "uses": [
+    "audio",
+    "region"
+   ],
+   "input_count": 2,
+   "answer_rule": "the same region for both clips",
+   "answer": {
+    "kind": "equality",
+    "keys": [
+     "region_1",
+     "region_2"
+    ]
+   }
+  },
+  {
+   "id": "QS_R2_07",
+   "name": "Broad Region from Province Cues",
+   "goal": "Infer the broad region using province cues in the voice.",
+   "uses": [
+    "audio",
+    "province",
+    "region"
+   ],
+   "input_count": 1,
+   "answer_rule": "the region for the province heard",
+   "answer": {
+    "kind": "derived_field",
+    "source_key": "province",
+    "target_key": "region"
+   }
+  },
+  {
+   "id": "QS_R2_08",
+   "name": "Partial Transcription",
+   "goal": "Transcribe the second half of the audio.",
+   "uses": [
+    "audio",
+    "text"
+   ],
+   "input_count": 1,
+   "answer_rule": "transcribe the text content",
+   "answer": {
+    "kind": "field_value",
+    "key": "text"
+   }
+  }
+ ]
+}

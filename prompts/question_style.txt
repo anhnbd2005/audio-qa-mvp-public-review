@@ -1,0 +1,113 @@
+Your task is to discover diverse QA possibilities supported by the
+CURRENT dataset profile. No audio files are provided. Representative
+metadata rows may be provided for context only; they never replace the
+audio evidence of a valid question type.
+
+How to read the input (in order):
+1. Dataset profile / README / schema first: field meanings, field roles,
+   documented relations, available supervision. This is the ONLY source
+   of truth for the CURRENT dataset.
+2. Fixed seed few-shots: they only demonstrate what a valid QA proposal
+   looks like. They are NOT a taxonomy and must not restrict what you
+   can propose.
+3. Already-covered examples at the end (if any): these capabilities are
+   taken. Propose something else.
+
+Rules:
+- Identify at most 8 candidate question types with meaningfully different
+  required evidence or deterministic answer derivation.
+- Start from the dataset schema, field meanings, documented relations,
+  and available supervision.
+- Independently inspect the current dataset: direct audio-grounded tasks,
+  field combinations, pairwise opportunities, hierarchical information,
+  comparisons, language-specific granularity.
+- Do not count renaming, synonymous labels, or alternate wording of an
+  already-covered capability as a new question type.
+- Every proposal must have a gold answer deterministically derivable
+  from dataset fields or explicitly stated relations.
+- Never expose an arbitrary internal identifier as the answer.
+- Template ids use your round prefix (e.g. QS_R2_03).
+- Output JSON only, matching the provided response schema.
+
+EXACT RAW FIELD NAMES. Field names used in the examples below are
+illustrative. ALWAYS use the exact raw field names declared by the
+CURRENT dataset profile/schema (for example the profile's declared
+region/province/transcript field names), never a shortened or renamed
+variant of them.
+
+WHAT `uses` MEANS. `uses` lists ALL dataset resources required to
+CONSTRUCT and DETERMINISTICALLY SCORE the QA instance. This includes
+BOTH (A) evidence presented to / consumed by the QA model AND (B)
+annotation or hidden fields used by Python to derive the gold answer.
+It is the union of build + score resources: not merely the fields
+Python reads the answer from, and not merely fields exposed to the
+model.
+
+Single-audio examples (audio evidence + gold annotation):
+- speech transcription: uses = ["audio", "text"], never ["text"].
+- gender recognition: uses = ["audio", "gender"], never ["gender"].
+- broad dialect-region recognition: uses = ["audio", <region label field>].
+- province-level dialect recognition: uses = ["audio", <province label field>].
+The raw label field is NOT a replacement for audio evidence.
+
+Pairwise examples (plain "audio" covers the pair constructor's audio
+evidence; indexed audio_1/audio_2 aliases stay supported):
+- Speaker Verification: uses = ["audio", "speakerID"].
+- same-gender comparison: uses = ["audio", "gender"].
+- same-region comparison: uses = ["audio", <region label field>].
+- same-province-dialect comparison: uses = ["audio", <province label field>].
+
+Do NOT fake grounding. Do not add "audio" to `uses` merely to satisfy
+validation. First decide whether solving the proposed question genuinely
+requires information from the audio. If it does, `uses` MUST explicitly
+contain "audio". If the question can be solved without listening to
+audio, it is not a valid proposal for this Speech Audio-QA pipeline and
+should NOT be returned. Anti-example: a fine_label -> coarse_label
+metadata mapping has uses = ["fine_label", "coarse_label"] and must NOT
+be returned; adding "audio" to it while audio is unneeded is an
+INCORRECT workaround.
+
+AUDIO NECESSITY TEST — apply it to EVERY candidate BEFORE output:
+"Could the intended question be answered correctly without listening
+to the audio evidence?"
+If YES: DO NOT RETURN THIS PROPOSAL.
+If NO: `uses` MUST explicitly include "audio".
+Then separately confirm: all annotation/hidden fields needed by Python
+for deterministic gold generation are also listed in `uses`.
+
+AUDIO-QA DISCOVERY POLICY. This is an Audio-QA benchmark/training-data
+discovery task.
+- A valid question type must require reasoning from the audio signal.
+- Metadata fields are available to define deterministic gold and, when
+  explicitly allowed, limited question context.
+- Do not propose a task whose answer is directly visible in provided
+  metadata context without listening to audio.
+- Do not expose identifiers, provenance, or hidden gold fields.
+- Do not infer unsupported label mappings.
+- For encoded categorical fields with undefined mappings, do not create
+  human-readable classification questions from those codes.
+
+WHAT VISIBLE CONTEXT MEANS. `context_visibility: visible` in the dataset
+profile is NOT a licence to insert that field into every question.
+- A field that is the GOLD SOURCE of a question type must never also
+  appear as visible question context for that same type.
+- A field may be visible context only when the type explicitly declares
+  it in `input_context_fields`, exposing it does not make the audio
+  unnecessary, it is not the answer/gold source, and the profile's
+  context visibility allows it.
+- Fields with role `hidden_identifier` are never rendered literally.
+- Fields with evaluation `discovery_only` never become direct final
+  semantic answers.
+- Role `context_only` means usable as contextual metadata only when the
+  type explicitly justifies it; it is NOT automatically answerable.
+- Final Audio-QA candidate types must require audio evidence unless the
+  type is explicitly classified as a non-audio auxiliary task. A type
+  whose answer is still deterministically available from the visible
+  metadata after removing the audio is rejected as metadata-solvable.
+- Supplying a full semantic annotation (for example an utterance-level
+  transcript) as visible context while the gold comes from a different
+  field is only allowed when the type explicitly justifies a genuine
+  audio-dependent multimodal operation.
+
+A derived_field answer proposes a deterministic source->target relation;
+Python will validate it from dataset evidence before accepting the type.

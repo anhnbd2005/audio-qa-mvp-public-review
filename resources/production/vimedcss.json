@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "dataset_id": "vimedcss",
+  "dataset_spec_hash": "fa0d6395cb59c79ab8a166dcf3d35e506158724e884e2d7a9cb49a48e7a2a4dc",
+  "semantic_catalog_hash": "447ab96ce333a4213f53ffc937c3829e36be6c582b79f05c3b0f6700b5210340",
+  "comparator_registry_hash": "baa50c6c2d9cf51d576dedd38750ba355a184c032a0c2fe624816fca6eab14fc",
+  "comparator_referenced_hashes": {
+    "categorical_label_exact": "1fef858a89115fc00f0b8e3b7d9f23ee429ddeb173f9040d7191596fe0c62248",
+    "vimedcss_cs_term_equivalence": "a9106b39328634533963b4bf382b2617dc1eddf42f8b0be9b53598967e28f98c",
+    "vimedcss_spoken_transcript_equivalence": "5b3e6f431fe8fb3c3db7d3c95d4e712a4471cd81b660b8ba4697f4f26f074733"
+  },
+  "language_registry_hash": "3cea8cb7449e246ceeae79607d5fc0976d0931c5e588c5e0d4b3265d7039c789",
+  "active_semantic_types": [
+    "vimedcss_spoken_content_transcription",
+    "vimedcss_cs_term_extraction",
+    "vimedcss_topic_classification",
+    "vimedcss_cs_term_presence",
+    "vimedcss_pairwise_topic_same"
+  ],
+  "production_planner_policy": {
+    "allowed_splits": [
+      "train"
+    ],
+    "plan_location": "outputs/production_plan/vimedcss/current"
+  },
+  "promotion_evidence": {
+    "production": {
+      "status": "PASS",
+      "errors": {
+        "duplicate_qa_id": 0,
+        "duplicate_semantic_id": 0,
+        "duplicate_pair": 0
+      },
+      "critical": 0,
+      "major": 0,
+      "minor": 0,
+      "row_count": 65124,
+      "model_facing_rows": 65124
+    },
+    "deterministic": true
+  },
+  "status": "PROMOTED",
+  "migration_source": "vimedcss_onboarding",
+  "promotion_fingerprint": "3eec55fcd45803af4b215443cd2fe61e56e7f1f55810c76984b8375717710d52"
+}

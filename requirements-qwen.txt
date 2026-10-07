@@ -1,0 +1,8 @@
+# Dependencies for Local Qwen2.5-Omni QLoRA Training
+torch>=2.1.0
+transformers>=4.40.0
+peft>=0.10.0
+accelerate>=0.28.0
+bitsandbytes>=0.43.0
+soundfile>=0.12.1
+pyyaml>=6.0

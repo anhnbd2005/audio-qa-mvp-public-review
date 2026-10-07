@@ -1,0 +1,132 @@
+Judge ONLY this round's candidate question types. You generate nothing new.
+
+Input per candidate: the question type plus its templates and paraphrases.
+The approved types from earlier rounds show what is already covered.
+
+Reason in TWO levels for EACH current type, in this order.
+
+LEVEL 1 — TYPE DECISION. Ask: is this question capability itself new,
+meaningful, and valid? Choose exactly one bucket per type:
+- accepted_new: valid type with deterministic gold, usable templates, and
+  a capability NOT covered by the approved pool.
+- duplicates: the same capability / answer-derivation as an approved type,
+  e.g. "Broad Regional Accent Classification" when "Dialect Region
+  Recognition" (audio -> region label) is already approved.
+- rejected: the type itself should not be approved (conceptually invalid
+  despite passing deterministic checks, unsupported reasoning, not
+  meaningful as a QA capability, or no template below survives).
+
+LEVEL 2 — TEMPLATE SELECTION, only for accepted_new types. A bad
+template MUST NOT change the type verdict if other correct templates
+remain: omit its id from keep_template_ids and move on.
+
+CRITICAL: equivalent paraphrase wordings are the GOAL of paraphrasing,
+never evidence of duplication. Two phrasings with the same semantics
+(e.g. "Phiên âm nội dung đoạn âm thanh này là gì?" vs "Hãy phiên âm đoạn
+âm thanh này.") do NOT make a duplicate type. Duplicate means same
+question-TYPE capability, not same wording.
+
+SELECTING TEMPLATES (keep_template_ids) — every ID must earn inclusion.
+Do NOT keep every candidate by default. For each accepted type, keep ONLY
+templates that independently satisfy ALL of:
+
+1. Semantic fidelity: the wording asks exactly for the information
+   represented by this question type and structured answer.
+2. Dataset-semantic fidelity: never infer a stronger real-world fact than
+   the dataset label supports. A dialect label does NOT establish
+   birthplace, hometown, residence, or personal origin unless the README
+   explicitly says so.
+   GOOD (province-level dialect): "Giọng nói trong đoạn âm thanh thuộc
+   phương ngữ tỉnh/thành nào?", "Hãy xác định tỉnh/thành tương ứng với
+   giọng địa phương trong đoạn âm thanh."
+   BAD: "Người nói quê ở tỉnh nào?", "Người nói đến từ tỉnh nào?",
+   "Người nói sinh ra ở tỉnh nào?"
+3. Correct expected answer form: the wording must expect the answer type
+   produced by the structured answer. Never drift province into broad
+   region ("vùng miền") when the gold is province-level; never turn an
+   information-seeking question into a yes/no one.
+   GOOD (transcription): "Hãy phiên âm đoạn âm thanh này."
+   BAD: "Bạn có thể phiên âm đoạn âm thanh này không?" (literally
+   requests a yes/no response).
+   For a boolean equality answer expected as Có/Không:
+   GOOD: "Hai đoạn âm thanh có phải do cùng một người nói không?"
+   BAD: "Người nói trong hai đoạn là một hay hai người?" (wording and
+   answer representation disagree).
+   Speaker verification must ask same speaker identity explicitly: vague
+   similarity wording ("giống nhau" without same-person meaning) is
+   ambiguous and must be omitted.
+   Strict equality must never be weakened to mere similarity: a wording
+   like "tương đồng" (similar), which allows likeness without exact
+   sameness, fails an equality type even when it sounds related. Keep
+   only templates demanding the exact same annotation on both sides.
+4. Natural Vietnamese: normal, understandable phrasing.
+5. No answer leakage: do not accept wording that reveals the answer
+   concept/value in another way.
+6. Useful surface diversity: do not keep several templates that are
+   effectively the same sentence with tiny filler/synonym changes when
+   one clearer version is enough.
+7. SUBJECT–ATTRIBUTE COMPATIBILITY:
+   The grammatical subject/owner of the requested attribute must match the
+   field's described entity scope:
+   - Speaker attributes (gender, sex, age, dialect region, province) belong to the
+     speaker ('người nói', 'hai người nói').
+   - Utterance attributes (intent, scenario, text, transcription) belong to the
+     spoken utterance or semantic message ('phát ngôn', 'câu lệnh', 'nội dung').
+   REJECT any template where:
+   - An utterance-level intent or scenario domain is attributed to vocal timbre or voice itself
+     (BAD: "Giọng người nói trong hai đoạn âm thanh có cùng ý định không?",
+      BAD: "Chất giọng của hai file có cùng kịch bản không?").
+   - A speaker-level attribute is attributed to unrelated objects or utterance content.
+   - A recording-provenance concept is presented as audible content.
+8. STRICT EQUALITY:
+   For equality types, wording must demand exact equality of the attribute.
+   REJECT vague wording such as 'tương tự', 'tương đồng', 'gần giống' that does
+   not guarantee strict equality.
+9. KEY NATURALNESS (INDIRECT JUDGEMENT):
+   Reject a template if the bound [KEY] phrase makes the final question
+   unnatural, misleading, or semantically discordant with the schema field.
+
+If no template survives for an otherwise new type, put the type in
+rejected (with reason) instead of accepted_new with an empty list.
+
+FAIL-CLOSED TEMPLATE CHECKLIST. For every offered template, ask all of:
+A. Does this wording request EXACTLY the gold represented by the
+   structured answer?
+B. Does it preserve the exact granularity of the answer field?
+C. Does it preserve the expected answer form?
+D. Does it avoid claiming information stronger than the dataset
+   supervision?
+E. Is it unambiguous?
+F. Is it natural Vietnamese?
+G. Does it add useful wording variation rather than only filler?
+Only if ALL are satisfactory, include its id in keep_template_ids.
+If uncertain, OMIT it. Quality is precision-first for retention.
+
+Transcription note: the question must ask for the actual spoken words.
+GOOD: "Hãy ghi lại nội dung được nói trong đoạn âm thanh.",
+"Hãy phiên âm lời nói trong đoạn âm thanh.",
+"Viết lại những gì người nói đã nói trong đoạn âm thanh."
+BAD (asks topic/summary, not literal text): "Đoạn âm thanh này đang nói
+về điều gì?", "Thuật lại nội dung của đoạn âm thanh.",
+"Tóm tắt nội dung đoạn âm thanh."
+
+Derived-field note: For derived_field(S, T), keep a template only when:
+- The final requested answer is T.
+- The wording makes the S→T reasoning observable enough that the task is not merely direct T-recognition.
+- The wording does not ask for a binary/candidate result (e.g. "... có thuộc [KEY] đã cho không?").
+- The wording does not invent an input/candidate that renderer does not provide.
+GOOD: "Dựa trên phương ngữ tỉnh/thành nhận biết được từ đoạn âm thanh, hãy xác định [KEY] của người nói."
+BAD (collapses to direct recognition): "Người nói thuộc [KEY] nào?"
+BAD (candidate yes/no): "Phương ngữ tỉnh/thành có thuộc [KEY] đã cho không?"
+
+Output ids only (plus keep lists and short reasons). Python already holds
+every text. Output JSON only, matching the provided response schema.
+
+TEMPLATE OMISSION IS THE ONLY TEMPLATE VERDICT. There is no separate
+template-rejected list: a bad template is expressed ONLY by leaving its
+id out of keep_template_ids. NEVER put template IDs into `rejected` or
+`duplicates` — those arrays hold QUESTION TYPE ids only. Example: if T2
+below is weaker than strict equality while T1 and T3 are good, the ONLY
+correct output keeps T1 and T3 and says nothing about T2 anywhere else:
+{"accepted_new": [{"type_id": "QS_R2_02",
+"keep_template_ids": ["T1", "T3"]}], "duplicates": [], "rejected": []}.

@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "resource_id": "sentiment_reasoning_source",
+  "version": "sentiment_reasoning_source_v1",
+  "dataset": "Sentiment-Reasoning",
+  "repo_id": "leduckhai/Sentiment-Reasoning",
+  "repo_type": "dataset",
+  "revision": "4850b30621a80ed978f8aaeb5aa7813631838a09",
+  "train_files": [
+    {
+      "path": "data/train-00000-of-00001.parquet",
+      "bytes": 114201227,
+      "sha256": "77ab5f646c1f8e1a96397bd8cd3ee6f8fa62b95c15cf73e4dcc90aa3c0a973d6"
+    }
+  ],
+  "reserved_test_files": [
+    {
+      "path": "data/test-00000-of-00001.parquet",
+      "bytes": 44716861,
+      "sha256": "060f0b09abcdb8fc4e3f72e0114fefcf97c42c4b1d78ce6439c11420224b9e19"
+    }
+  ],
+  "local_retained_metadata_path": "data/materialized/sentiment_reasoning/_cache/4850b30621a80ed978f8aaeb5aa7813631838a09/",
+  "relevant_fields": ["audio", "text", "label"],
+  "reserved_field_note": "human_justification retained as provenance only; never used for P5 gold",
+  "schema": [
+    "human_justification",
+    "label",
+    "text",
+    "duration",
+    "audio",
+    "human_justification_en",
+    "text_en",
+    "English",
+    "Chinese",
+    "traditional_chinese",
+    "French",
+    "German"
+  ],
+  "parser": {
+    "version": "speech_sentiment_p5_parser_v1",
+    "format": "parquet",
+    "row_identity": "shard+row_index",
+    "shard_id": "train-00000-of-00001"
+  },
+  "split_policy": {
+    "train": "data/train-00000-of-00001.parquet",
+    "reserved_evaluation": "data/test-00000-of-00001.parquet"
+  },
+  "verify_before_generation": true
+}

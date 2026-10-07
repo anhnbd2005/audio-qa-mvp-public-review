@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "resource_id": "p5_sentiment_policy",
+  "version": "p5_sentiment_policy_v1",
+  "task": "P5",
+  "semantic_type": "speech_sentiment_analysis",
+  "benchmark_category": "perception",
+  "benchmark_type": "general",
+  "gold_origin": "SOURCE",
+  "compiler_tier": "T1_PERCEPTION",
+  "seed": 42,
+  "answer_space": ["Tích cực", "Trung tính", "Tiêu cực"],
+  "label_map": {
+    "positive": "Tích cực",
+    "neutral": "Trung tính",
+    "negative": "Tiêu cực"
+  },
+  "template_bank": [
+    {
+      "template_id": "p5_t01",
+      "text": "Dựa vào đoạn ghi âm, thái độ của người nói mang sắc thái nào?"
+    },
+    {
+      "template_id": "p5_t02",
+      "text": "Phát ngôn trong đoạn âm thanh thể hiện sắc thái đánh giá nào?"
+    },
+    {
+      "template_id": "p5_t03",
+      "text": "Thái độ của người nói trong đoạn ghi âm thuộc loại nào?"
+    },
+    {
+      "template_id": "p5_t04",
+      "text": "Đoạn âm thanh thể hiện xu hướng đánh giá nào?"
+    },
+    {
+      "template_id": "p5_t05",
+      "text": "Phát ngôn trong đoạn ghi âm mang sắc thái tích cực, trung tính hay tiêu cực?"
+    },
+    {
+      "template_id": "p5_t06",
+      "text": "Hãy xác định sắc thái đánh giá của người nói trong đoạn âm thanh."
+    }
+  ]
+}

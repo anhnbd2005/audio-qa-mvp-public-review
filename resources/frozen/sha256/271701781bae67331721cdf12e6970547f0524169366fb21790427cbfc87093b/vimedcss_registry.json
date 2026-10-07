@@ -1,0 +1,85 @@
+{
+  "language": "vi",
+  "version": "vimedcss_v1",
+  "schema_version": 1,
+  "entries": [
+    {
+      "language_entry_id": "lang_vimedcss_vimedcss_spoken_content_transcription",
+      "type_id": "vimedcss_spoken_content_transcription",
+      "proposition_id": "vimedcss_spoken_content_transcription",
+      "operator": "DIRECT",
+      "comparator_id": "vimedcss_spoken_transcript_equivalence",
+      "answer_kind": "field_value",
+      "templates": [
+        "Hãy chép lại nội dung lời nói trong đoạn âm thanh.",
+        "Nội dung được nói trong đoạn âm thanh là gì?",
+        "Ghi lại lời thoại trong đoạn âm thanh."
+      ],
+      "answer_format": "Chuỗi văn bản ghi lại lời nói.",
+      "tier": "T1_PERCEPTION",
+      "gold_origin": "SOURCE"
+    },
+    {
+      "language_entry_id": "lang_vimedcss_vimedcss_cs_term_extraction",
+      "type_id": "vimedcss_cs_term_extraction",
+      "proposition_id": "vimedcss_cs_term_extraction",
+      "operator": "DIRECT",
+      "comparator_id": "vimedcss_cs_term_equivalence",
+      "answer_kind": "field_value",
+      "templates": [
+        "Liệt kê (các) thuật ngữ y khoa chuyển mã xuất hiện trong đoạn âm thanh.",
+        "Đoạn âm thanh có (những) thuật ngữ y khoa ngoại ngữ nào?",
+        "Nêu các thuật ngữ y khoa tiếng Anh/ngoại ngữ trong đoạn âm thanh."
+      ],
+      "answer_format": "Các thuật ngữ y khoa, phân tách bằng dấu chấm phẩy.",
+      "tier": "T1_PERCEPTION",
+      "gold_origin": "SOURCE"
+    },
+    {
+      "language_entry_id": "lang_vimedcss_vimedcss_topic_classification",
+      "type_id": "vimedcss_topic_classification",
+      "proposition_id": "vimedcss_topic_classification",
+      "operator": "DIRECT",
+      "comparator_id": "categorical_label_exact",
+      "answer_kind": "field_value",
+      "templates": [
+        "Đoạn âm thanh thuộc chủ đề y khoa nào?",
+        "Chủ đề y khoa của đoạn âm thanh là gì?"
+      ],
+      "answer_format": "Một trong các nhãn chủ đề y khoa.",
+      "tier": "T1_PERCEPTION",
+      "gold_origin": "SOURCE"
+    },
+    {
+      "language_entry_id": "lang_vimedcss_vimedcss_cs_term_presence",
+      "type_id": "vimedcss_cs_term_presence",
+      "proposition_id": "vimedcss_cs_term_presence",
+      "operator": "TARGET_MATCH",
+      "comparator_id": "vimedcss_cs_term_equivalence",
+      "answer_kind": "boolean",
+      "templates": [
+        "Trong đoạn âm thanh, thuật ngữ “{candidate}” có được nhắc đến không?",
+        "Đoạn âm thanh có nói đến thuật ngữ “{candidate}” không?"
+      ],
+      "answer_format": "true/false",
+      "tier": "T2_DERIVED",
+      "gold_origin": "DERIVED_SOURCE"
+    },
+    {
+      "language_entry_id": "lang_vimedcss_vimedcss_pairwise_topic_same",
+      "type_id": "vimedcss_pairwise_topic_same",
+      "proposition_id": "vimedcss_pairwise_topic_same",
+      "operator": "EQUALITY",
+      "comparator_id": "categorical_label_exact",
+      "answer_kind": "boolean",
+      "templates": [
+        "Hai đoạn âm thanh có cùng chủ đề y khoa không?",
+        "Chủ đề y khoa của hai đoạn âm thanh có giống nhau không?"
+      ],
+      "answer_format": "true/false",
+      "tier": "T3_RELATIONAL",
+      "gold_origin": "DERIVED_SOURCE"
+    }
+  ],
+  "registry_hash": "3cea8cb7449e246ceeae79607d5fc0976d0931c5e588c5e0d4b3265d7039c789"
+}

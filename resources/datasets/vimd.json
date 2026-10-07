@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "dataset_id": "vimd",
+  "pretty_name": "ViMD — Vietnamese Multi-dialect Dataset",
+  "source": {
+    "provider": "huggingface",
+    "repository": "nguyendv02/ViMD_Dataset",
+    "revision_identity": "3a5b30157034e7eadd5c75fae1a820c6f9383398",
+    "declared_splits": {
+      "train": 15023,
+      "validation": 1900
+    }
+  },
+  "allowed_splits": ["train"],
+  "split_policy": {
+    "production_split": "train",
+    "forbidden_splits": ["validation", "test"]
+  },
+  "record_identity": {
+    "field": "filename",
+    "audio_id_field": "audio_id"
+  },
+  "source_schema": [
+    "region",
+    "province_code",
+    "province_name",
+    "filename",
+    "text",
+    "speakerID",
+    "gender"
+  ],
+  "semantic_source_fields": {
+    "text": "text",
+    "region": "region",
+    "province_name": "province_name",
+    "speaker_identifier": "speakerID"
+  },
+  "audio_reference_schema": {
+    "kind": "logical_audio_id",
+    "id_field": "filename",
+    "materialized_metadata_cache": "outputs/materialized/vimd/_cache/3a5b30157034e7eadd5c75fae1a820c6f9383398/train.jsonl"
+  },
+  "adapter_id": "vimd_hf_parquet",
+  "production_constraints": {
+    "hidden_identifier_fields": ["speakerID"],
+    "per_type_count": 2000,
+    "seed": 42
+  },
+  "provenance": {
+    "metadata_sha256": "b793904802cb07ddef67ea51205773ad4cef6196c6e3e08c1af3fcab399df731",
+    "final_plan_source_run": "outputs/production_qa/vimd/20260928T083557Z"
+  }
+}

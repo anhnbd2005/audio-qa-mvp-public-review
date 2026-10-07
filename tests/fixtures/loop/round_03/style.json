@@ -1,0 +1,133 @@
+{
+ "round": 3,
+ "question_types": [
+  {
+   "id": "QS_R3_01",
+   "name": "Gender from Voice",
+   "goal": "Tell the speaker's gender from the voice recording.",
+   "uses": [
+    "audio",
+    "gender"
+   ],
+   "input_count": 1,
+   "answer_rule": "the gender label of the voice",
+   "answer": {
+    "kind": "field_value",
+    "key": "gender"
+   }
+  },
+  {
+   "id": "QS_R3_02",
+   "name": "Accent Region Detection",
+   "goal": "Detect which broad region the accent comes from.",
+   "uses": [
+    "audio",
+    "region"
+   ],
+   "input_count": 1,
+   "answer_rule": "the region of the dialect heard",
+   "answer": {
+    "kind": "field_value",
+    "key": "region"
+   }
+  },
+  {
+   "id": "QS_R3_03",
+   "name": "Speech Transcription",
+   "goal": "Produce the transcript of the spoken audio.",
+   "uses": [
+    "audio",
+    "text"
+   ],
+   "input_count": 1,
+   "answer_rule": "transcribe the text content",
+   "answer": {
+    "kind": "field_value",
+    "key": "text"
+   }
+  },
+  {
+   "id": "QS_R3_04",
+   "name": "Voice Match Check",
+   "goal": "Check whether two voice clips match one speaker.",
+   "uses": [
+    "audio",
+    "speakerID"
+   ],
+   "input_count": 2,
+   "answer_rule": "same speakerID => yes, otherwise no",
+   "answer": {
+    "kind": "equality",
+    "keys": [
+     "speakerID_1",
+     "speakerID_2"
+    ]
+   }
+  },
+  {
+   "id": "QS_R3_05",
+   "name": "Home Province Recognition",
+   "goal": "Recognize the speaker's home province from speech.",
+   "uses": [
+    "audio",
+    "province"
+   ],
+   "input_count": 1,
+   "answer_rule": "the province of the speaker voice",
+   "answer": {
+    "kind": "field_value",
+    "key": "province"
+   }
+  },
+  {
+   "id": "QS_R3_06",
+   "name": "Dialect Match Check",
+   "goal": "Check whether two clips share the dialect region.",
+   "uses": [
+    "audio",
+    "region"
+   ],
+   "input_count": 2,
+   "answer_rule": "the same region for both clips",
+   "answer": {
+    "kind": "equality",
+    "keys": [
+     "region_1",
+     "region_2"
+    ]
+   }
+  },
+  {
+   "id": "QS_R3_07",
+   "name": "Coarse Region Inference",
+   "goal": "Infer the coarse region from fine dialect cues.",
+   "uses": [
+    "audio",
+    "province",
+    "region"
+   ],
+   "input_count": 1,
+   "answer_rule": "the region that the province belongs to",
+   "answer": {
+    "kind": "derived_field",
+    "source_key": "province",
+    "target_key": "region"
+   }
+  },
+  {
+   "id": "QS_R3_08",
+   "name": "Audio Channel Check",
+   "goal": "Report the transcript channel content of the audio.",
+   "uses": [
+    "audio",
+    "text"
+   ],
+   "input_count": 1,
+   "answer_rule": "the text content of the audio",
+   "answer": {
+    "kind": "field_value",
+    "key": "text"
+   }
+  }
+ ]
+}

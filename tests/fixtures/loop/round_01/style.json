@@ -1,0 +1,132 @@
+{
+  "round": 1,
+  "question_types": [
+    {
+      "id": "QS_R1_01",
+      "name": "Speaker Gender Recognition",
+      "goal": "Identify the speaker's gender from the audio.",
+      "uses": [
+        "audio",
+        "gender"
+      ],
+      "input_count": 1,
+      "answer_rule": "the gender label of the speaker",
+      "answer": {
+        "kind": "field_value",
+        "key": "gender"
+      }
+    },
+    {
+      "id": "QS_R1_02",
+      "name": "Dialect Region Recognition",
+      "goal": "Identify the speaker's broad dialect region from the audio.",
+      "uses": [
+        "audio",
+        "region"
+      ],
+      "input_count": 1,
+      "answer_rule": "the broad region label of the voice",
+      "answer": {
+        "kind": "field_value",
+        "key": "region"
+      }
+    },
+    {
+      "id": "QS_R1_03",
+      "name": "Speaker Verification",
+      "goal": "Decide whether two recordings come from the same speaker.",
+      "uses": [
+        "audio",
+        "speakerID"
+      ],
+      "input_count": 2,
+      "answer_rule": "same speakerID => yes, otherwise no",
+      "answer": {
+        "kind": "equality",
+        "keys": [
+          "speakerID_1",
+          "speakerID_2"
+        ]
+      }
+    },
+    {
+      "id": "QS_R1_04",
+      "name": "Transcription",
+      "goal": "Transcribe the spoken content of the audio.",
+      "uses": [
+        "audio",
+        "text"
+      ],
+      "input_count": 1,
+      "answer_rule": "transcribe the text content of the audio",
+      "answer": {
+        "kind": "field_value",
+        "key": "text"
+      }
+    },
+    {
+      "id": "QS_R1_05",
+      "name": "Province-to-Region Reasoning",
+      "goal": "Infer the broad dialect region from the province-level dialect.",
+      "uses": [
+        "audio",
+        "province",
+        "region"
+      ],
+      "input_count": 1,
+      "answer_rule": "the region that the province belongs to",
+      "answer": {
+        "kind": "derived_field",
+        "source_key": "province",
+        "target_key": "region"
+      }
+    },
+    {
+      "id": "QS_R1_06",
+      "name": "Utterance Duration Estimation",
+      "goal": "Estimate how long the utterance lasts.",
+      "uses": [
+        "audio",
+        "duration"
+      ],
+      "input_count": 1,
+      "answer_rule": "the duration value of the audio",
+      "answer": {
+        "kind": "derived_field",
+        "source_key": "province_1",
+        "target_key": "region"
+      }
+    },
+    {
+      "id": "QS_R1_07",
+      "name": "Speaker Age Recognition",
+      "goal": "Identify the speaker's age group from the audio.",
+      "uses": [
+        "audio",
+        "age"
+      ],
+      "input_count": 1,
+      "answer_rule": "the age label of the speaker",
+      "answer": {
+        "kind": "field_value",
+        "key": "age"
+      }
+    },
+    {
+      "id": "QS_R1_08",
+      "name": "Province to Region Mapping",
+      "goal": "Map a province label to its broad region from metadata.",
+      "uses": [
+        "province",
+        "region"
+      ],
+      "input_count": 1,
+      "answer_rule": "the region that the province belongs to",
+      "answer": {
+        "kind": "derived_field",
+        "source_key": "province",
+        "target_key": "region"
+      }
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+ "round": 3,
+ "paraphrases": [
+  {
+   "template_id": "T_R3_01_01_P01",
+   "source_template_id": "T_R3_01_01",
+   "text": "Cho biết [KEY] người nói."
+  },
+  {
+   "template_id": "T_R3_02_01_P01",
+   "source_template_id": "T_R3_02_01",
+   "text": "Hãy xác định [KEY] qua giọng nói."
+  },
+  {
+   "template_id": "T_R3_03_01_P01",
+   "source_template_id": "T_R3_03_01",
+   "text": "Chép lại những gì được nói."
+  },
+  {
+   "template_id": "T_R3_04_01_P01",
+   "source_template_id": "T_R3_04_01",
+   "text": "Cùng một người nói hai đoạn này phải không?"
+  },
+  {
+   "template_id": "T_R3_05_01_P01",
+   "source_template_id": "T_R3_05_01",
+   "text": "[KEY] quê của người nói là gì?"
+  },
+  {
+   "template_id": "T_R3_06_01_P01",
+   "source_template_id": "T_R3_06_01",
+   "text": "Hai đoạn clip có giống vùng giọng nhau không?"
+  },
+  {
+   "template_id": "T_R3_07_01_P01",
+   "source_template_id": "T_R3_07_01",
+   "text": "Từ [KEY], hãy nêu vùng giọng chung."
+  },
+  {
+   "template_id": "T_R3_08_01_P01",
+   "source_template_id": "T_R3_08_01",
+   "text": "Hãy cho biết [KEY] trong audio."
+  }
+ ]
+}

@@ -1,0 +1,154 @@
+{
+  "dataset": "vimd",
+  "pretty_name": "ViMD (Vietnamese Multi-Dialect)",
+  "description": "Vietnamese multi-dialect speech dataset covering the fine-grained diversity of 63 provincial dialects instead of the coarse three-region grouping, built from local news broadcasts and supporting dialect identification and speech recognition.",
+  "locale": "vi-VN",
+  "task_categories": [
+    "automatic-speech-recognition",
+    "audio-classification"
+  ],
+  "fields": {
+    "region": {
+      "type": "string",
+      "role": "semantic",
+      "entity_scope": "speaker",
+      "description": "Macro dialect region of the speaker, which the card lists as Northern / Central / Southern; the coarse grouping contrasted with the 63 provincial dialects.",
+      "is_categorical": true,
+      "evaluation": "eligible",
+      "context_visibility": "forbidden"
+    },
+    "province_code": {
+      "type": "int64",
+      "role": "provenance",
+      "entity_scope": "speaker",
+      "description": "Numeric code of the speaker's province, declared by the card as bookkeeping for province_name; the bare number is not an audio-understanding answer.",
+      "is_categorical": true,
+      "evaluation": "discovery_only",
+      "context_visibility": "forbidden"
+    },
+    "province_name": {
+      "type": "string",
+      "role": "semantic",
+      "entity_scope": "speaker",
+      "description": "Name of the province, defining the specific provincial dialect of the speaker; the fine-grained counterpart of region.",
+      "is_categorical": true,
+      "evaluation": "eligible",
+      "context_visibility": "forbidden"
+    },
+    "filename": {
+      "type": "string",
+      "role": "provenance",
+      "entity_scope": "recording",
+      "description": "Name of the source audio file for this row; bookkeeping only, not a semantic speech attribute.",
+      "is_categorical": false,
+      "evaluation": "discovery_only",
+      "context_visibility": "forbidden"
+    },
+    "text": {
+      "type": "string",
+      "role": "semantic",
+      "entity_scope": "utterance",
+      "description": "Transcript of the utterance, semi-automatically transcribed and manually verified.",
+      "is_categorical": false,
+      "evaluation": "eligible",
+      "context_visibility": "forbidden"
+    },
+    "speakerID": {
+      "type": "string",
+      "role": "hidden_identifier",
+      "entity_scope": "speaker",
+      "description": "Anonymized speaker identifier; usable only to relate rows of the same speaker, and its literal value must never become a semantic answer.",
+      "is_categorical": true,
+      "evaluation": "eligible",
+      "context_visibility": "forbidden"
+    },
+    "gender": {
+      "type": "int64",
+      "role": "semantic",
+      "entity_scope": "speaker",
+      "description": "Speaker gender as an encoded integer. The source card states no meaning for the integer values, so no numeric-to-label reading may be assumed and the field stays out of the final QA pool until an encoding policy exists.",
+      "is_categorical": true,
+      "evaluation": "discovery_only",
+      "context_visibility": "forbidden"
+    },
+    "audio": {
+      "type": "audio",
+      "role": "audio",
+      "entity_scope": "recording",
+      "description": "Waveform audio of the utterance; acoustic input evidence only and never a direct semantic gold answer.",
+      "is_categorical": false,
+      "evaluation": "eligible",
+      "context_visibility": "forbidden"
+    }
+  },
+  "field_roles": {
+    "region": "semantic",
+    "province_code": "provenance",
+    "province_name": "semantic",
+    "filename": "provenance",
+    "text": "semantic",
+    "speakerID": "hidden_identifier",
+    "gender": "semantic",
+    "audio": "audio"
+  },
+  "entity_scopes": {
+    "region": "speaker",
+    "province_code": "speaker",
+    "province_name": "speaker",
+    "filename": "recording",
+    "text": "utterance",
+    "speakerID": "speaker",
+    "gender": "speaker",
+    "audio": "recording"
+  },
+  "field_evaluations": {
+    "region": "eligible",
+    "province_code": "discovery_only",
+    "province_name": "eligible",
+    "filename": "discovery_only",
+    "text": "eligible",
+    "speakerID": "eligible",
+    "gender": "discovery_only",
+    "audio": "eligible"
+  },
+  "context_visibilities": {
+    "region": "forbidden",
+    "province_code": "forbidden",
+    "province_name": "forbidden",
+    "filename": "forbidden",
+    "text": "forbidden",
+    "speakerID": "forbidden",
+    "gender": "forbidden",
+    "audio": "forbidden"
+  },
+  "hidden_fields": [
+    "speakerID"
+  ],
+  "semantic_fields": [
+    "gender",
+    "province_name",
+    "region",
+    "text"
+  ],
+  "relations": [
+    {
+      "source_field": "province_name",
+      "target_field": "region",
+      "description": "The card contrasts the 63 provincial dialects named by province_name with the coarse three-region grouping named by region, making province_name the finer-grained label of the pair."
+    },
+    {
+      "source_field": "filename",
+      "target_field": "audio",
+      "description": "filename names the source audio file that carries the waveform stored in audio for the same row."
+    }
+  ],
+  "qa_constraints": [
+    "Use only the raw field names declared by the source card; never rename or invent a field.",
+    "Do not expose a literal speakerID value as a semantic answer; the field may only relate rows of the same speaker.",
+    "Do not treat filename as a semantic speech attribute.",
+    "Do not assign any meaning to the gender encoding; the card leaves the integer meaning undefined.",
+    "Do not treat the numeric province code as an audio-understanding answer; province_name is the labelled dialect field.",
+    "Do not publish a province-to-region lookup table; that mapping needs row-level data not present in the card.",
+    "Every gold answer must be derivable deterministically from the declared fields or from card-stated relations."
+  ]
+}

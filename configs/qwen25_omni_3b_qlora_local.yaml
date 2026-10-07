@@ -1,0 +1,67 @@
+model:
+  path: null
+  processor_path: null
+  local_files_only: true
+  attn_implementation: sdpa
+
+data:
+  audio_root: null
+  train_jsonl: null
+  validation_jsonl: null
+  expected_train_rows: null
+  expected_validation_rows: null
+  train_sha256: null
+  validation_sha256: null
+
+output:
+  dir: null
+
+runtime:
+  device: cuda:0
+  expected_sample_rate: 16000
+  data_preflight_only: false
+  model_preflight_only: false
+  smoke_before_train: true
+  optimizer_canary: true
+  train: true
+  evaluate_after_train: true
+
+quantization:
+  enabled: true
+  load_in_4bit: true
+  quant_type: nf4
+  double_quant: true
+  compute_dtype: float16
+
+lora:
+  enabled: true
+  r: 8
+  alpha: 16
+  dropout: 0.05
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+  exclude_modules: '^(audio_tower|visual)(\.|$) Both.*$'
+  expected_trainable_params: 14966784
+
+training:
+  epochs: 1
+  microbatch: 2
+  grad_accum: 2
+  validation_microbatch: 4
+  learning_rate: 0.0001
+  max_grad_norm: 1.0
+  seed: 42
+  gradient_checkpointing: true
+  scheduler: constant
+
+resume:
+  mode: fresh
+  adapter_path: null
+  expected_adapter_sha256: null
+  epoch_index: 0

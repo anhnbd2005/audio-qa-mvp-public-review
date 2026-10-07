@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "resource_id": "p2_gender_policy",
+  "version": "p2_gender_policy_v1",
+  "task": "P2",
+  "semantic_type": "speaker_gender_recognition",
+  "benchmark_category": "perception",
+  "gold_origin": "SOURCE",
+  "compiler_tier": "T1_PERCEPTION",
+  "seed": 42,
+  "answers": {
+    "male": "Nam",
+    "female": "Nữ"
+  },
+  "choices": ["Nam", "Nữ"],
+  "vimd_gender_map": {
+    "1": "male",
+    "0": "female"
+  },
+  "speech_massive_sex_map": {
+    "Male": "male",
+    "Female": "female"
+  },
+  "conflict_policy": "drop_all_rows_for_speaker",
+  "speaker_propagation": false,
+  "template_bank": [
+    {
+      "template_id": "p2_t01",
+      "text": "Dựa vào giọng nói, người nói là nam hay nữ?"
+    },
+    {
+      "template_id": "p2_t02",
+      "text": "Giới tính của người nói trong đoạn âm thanh là gì?"
+    },
+    {
+      "template_id": "p2_t03",
+      "text": "Hãy xác định giới tính của người nói dựa trên đoạn âm thanh."
+    },
+    {
+      "template_id": "p2_t04",
+      "text": "Người nói trong đoạn ghi âm là nam hay nữ?"
+    },
+    {
+      "template_id": "p2_t05",
+      "text": "Dựa trên giọng nói trong audio, hãy xác định người nói là nam hay nữ."
+    },
+    {
+      "template_id": "p2_t06",
+      "text": "Nghe đoạn âm thanh và xác định người nói là nam hay nữ."
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "resource_id": "p3_age_policy",
+  "version": "p3_age_policy_v1",
+  "task": "P3",
+  "semantic_type": "speaker_age_recognition",
+  "benchmark_category": "perception",
+  "gold_origin": "DERIVED_SOURCE",
+  "compiler_tier": "T2_DERIVED",
+  "seed": 42,
+  "answer_space": [
+    "18–29",
+    "30–59",
+    "60+"
+  ],
+  "age_bins": [
+    {
+      "label": "18–29",
+      "min": 18,
+      "max": 29
+    },
+    {
+      "label": "30–59",
+      "min": 30,
+      "max": 59
+    },
+    {
+      "label": "60+",
+      "min": 60,
+      "max": null
+    }
+  ],
+  "unidentified_token": "Unidentified",
+  "template_bank": [
+    {
+      "template_id": "p3_t01",
+      "text": "Dựa vào giọng nói, nhóm tuổi nào phù hợp nhất với người nói?"
+    },
+    {
+      "template_id": "p3_t02",
+      "text": "Nghe đoạn ghi âm này, người nói có thể thuộc nhóm tuổi nào?"
+    },
+    {
+      "template_id": "p3_t03",
+      "text": "Trong các nhóm tuổi dưới đây, nhóm nào phù hợp với người nói trong đoạn ghi âm?"
+    },
+    {
+      "template_id": "p3_t04",
+      "text": "Theo giọng nói trong đoạn ghi âm, người nói có thể thuộc nhóm tuổi nào?"
+    },
+    {
+      "template_id": "p3_t05",
+      "text": "Hãy xác định nhóm tuổi của người nói dựa vào giọng nói."
+    },
+    {
+      "template_id": "p3_t06",
+      "text": "Người nói trong đoạn audio phù hợp nhất với nhóm tuổi nào?"
+    }
+  ]
+}

@@ -1,0 +1,123 @@
+You are profiling an audio dataset for a generic Audio-QA discovery
+pipeline.
+
+Read the dataset card as the sole semantic authority. It follows this
+message after the marker `--- SOURCE CARD (SOLE SEMANTIC AUTHORITY) ---`.
+
+Your job is NOT to create questions.
+
+Your job is to describe what each field means and how it may be safely
+used by a later QA-discovery system.
+
+For each field, also provide optional semantic rendering hints within this
+same profiler response when the source card supports them:
+- `semantic_class`: categorical_attribute, numeric_attribute, text_content,
+  ordinal_attribute, boolean_attribute, multi_label_attribute, or
+  identifier_relation.
+- `verbalization`: concise natural-language `entity_phrase`,
+  `attribute_phrase`, `content_phrase`, `value_phrase`, and documented `unit`.
+- `value_policy`: normalization, exact/bucket/tolerance match policy, and an
+  explicit comparison policy when supported.
+
+These are semantic lexical labels for deterministic template rendering, NOT
+question templates. Do not generate questions. Do not invent a unit, mapping,
+bin, or tolerance that is absent from the source card; leave it null/unknown.
+
+Use only field names that literally occur in the source card.
+
+Do not invent labels, mappings, relations, or attributes not supported
+by the card.
+
+Classify every field using the repository's existing vocabularies.
+
+OUTPUT CONTRACT
+- Return exactly one structured object matching the provided response
+  schema. No prose outside the object.
+- `fields` keys MUST be the raw source field names, character for
+  character, exactly as they appear in the card's feature list.
+  Never rename: not `speaker_id`, not `province`, not `transcript`.
+- For every field, `type` MUST be the dtype declared in the card's
+  `dataset_info.features` block (string / int64 / audio / ...). Do not
+  substitute a broader or narrower type.
+- Also mirror your per-field decisions into the top-level maps
+  (`field_roles`, `entity_scopes`, `field_evaluations`,
+  `context_visibilities`) and into `semantic_fields` / `hidden_fields`.
+  The mirror MUST agree with `fields` — a mismatch is rejected.
+
+ROLE vocabulary (use exactly these values):
+- audio: input acoustic evidence, never direct semantic gold.
+- semantic: field whose semantic value can potentially be a QA answer.
+- hidden_identifier: identifier useful for deterministic relations such
+  as same-speaker, but the literal ID must never become a semantic
+  answer.
+- provenance: bookkeeping/source field, not an audio-understanding
+  target.
+- context_only: may help formulate a task but should not itself be
+  direct gold.
+
+ENTITY SCOPE vocabulary (use exactly these values, or null when the card
+does not support any scope for that field):
+- speaker
+- utterance
+- recording
+- conversation
+
+EVALUATION vocabulary (use exactly these values):
+- eligible: may be used by final QA discovery/evaluation.
+- discovery_only: may remain visible to discovery logic but must not
+  directly enter the final QA pool until additional evidence or policy
+  is available.
+
+CONTEXT VISIBILITY vocabulary (use exactly these values):
+- visible
+- hidden
+- forbidden
+
+HARD RULES
+
+- `gender` is described only as "speaker gender (encoded)". The source
+  card DOES NOT define what integer 0 or 1 means. You MUST NOT invent
+  `0 = female`, `1 = male`, or the reverse, in any field, at any depth,
+  in any wording. If the semantic interpretation is incomplete because
+  the encoding is unknown, reflect this through a conservative
+  evaluation and a description that says the encoding is undefined in
+  the card — never through a hallucinated mapping.
+
+- `province_code` is a numeric province code. Do not automatically
+  assume the numeric ID itself is a meaningful audio-understanding
+  answer.
+
+- `filename` is a source file name. Do not treat filenames as semantic
+  speech attributes.
+
+- `speakerID` is anonymized identity. Literal values must not be
+  emitted as semantic QA answers.
+
+- `text` is the transcript of the utterance.
+
+- `province_name` is the specific provincial dialect label.
+
+- `region` is the broad dialect region.
+
+- `audio` is waveform evidence.
+
+RELATIONS
+- Only declare relations whose two endpoints are raw fields from the
+  card, and only when the card text supports the claim.
+- You MAY describe the relation between `province_name` and `region`
+  because the source card explicitly contrasts 63 provincial dialects
+  with the coarse three-region grouping.
+- You MUST NOT invent a province-to-region lookup table. That mapping
+  would need row-level data later.
+
+DO NOT INVENT VALUES
+- No province list, no speaker IDs, no exact gender label mapping, no
+  province-to-region lookup table, no sample transcript, no sample
+  filenames, no observed cardinality or observed value lists. Only what
+  the card itself declares.
+
+QA CONSTRAINTS
+- List the constraints a later QA-discovery system must respect for this
+  dataset, derived from the card and from the rules above.
+
+--- SOURCE CARD (SOLE SEMANTIC AUTHORITY) ---

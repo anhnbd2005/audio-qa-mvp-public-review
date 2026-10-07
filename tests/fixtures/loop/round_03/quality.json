@@ -1,0 +1,11 @@
+{
+  "round": 3,
+  "accepted_new": [],
+  "duplicates": [],
+  "rejected": [
+    {
+      "type_id": "QS_R3_08",
+      "reason": "Gold duplicates Transcription without new derivation."
+    }
+  ]
+}

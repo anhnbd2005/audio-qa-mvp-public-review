@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "resource_id": "p1_pair_policy",
+  "version": "p1_pair_policy_v1",
+  "task": "P1",
+  "semantic_type": "speaker_verification",
+  "benchmark_category": "perception",
+  "gold_origin": "DERIVED_SOURCE",
+  "compiler_tier": "T2_DERIVED",
+  "seed": 42,
+  "source": {
+    "dataset": "ViMD",
+    "repository": "nguyendv02/ViMD_Dataset",
+    "revision": "3a5b30157034e7eadd5c75fae1a820c6f9383398",
+    "split": "train",
+    "filename_field": "filename",
+    "speaker_field": "speakerID",
+    "gender_field": "gender",
+    "region_field": "region",
+    "province_field": "province_name"
+  },
+  "gold_rule": "speakerID(A) == speakerID(B)",
+  "answers": {
+    "same": "Cùng người nói",
+    "different": "Khác người nói"
+  },
+  "negative_tiers": [
+    "same_region_same_gender",
+    "same_region",
+    "unrestricted"
+  ],
+  "recipe_id": "vimd_p1_pair_beep_v1",
+  "template_bank": [
+    {
+      "template_id": "p1_t01",
+      "text": "Các đoạn âm thanh được ngăn cách bởi tiếng beep. Các đoạn này có phải do cùng một người nói không?"
+    },
+    {
+      "template_id": "p1_t02",
+      "text": "Hãy nghe các đoạn nói được phân cách bằng tiếng beep. Chúng có phải của cùng một người nói không?"
+    },
+    {
+      "template_id": "p1_t03",
+      "text": "Các phần lời nói trong audio được ngăn cách bởi tiếng beep. Người nói có phải là cùng một người không?"
+    },
+    {
+      "template_id": "p1_t04",
+      "text": "Nghe các đoạn âm thanh hai bên tiếng beep. Đây có phải giọng của cùng một người nói không?"
+    },
+    {
+      "template_id": "p1_t05",
+      "text": "Các đoạn lời nói được phân cách bằng tiếng beep có thuộc cùng một người nói không?"
+    }
+  ]
+}

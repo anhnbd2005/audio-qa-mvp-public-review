@@ -1,0 +1,10 @@
+{
+  "language": "vi",
+  "version": "vi_semantic_guard_v1",
+  "numeric_exact_forbidden": ["khoảng", "xấp xỉ", "gần", "tầm", "ước chừng"],
+  "text_exact_forbidden": ["có chứa", "chứa từ", "xuất hiện từ", "nhắc đến"],
+  "selection_exact_forbidden": ["phù hợp hơn", "gần hơn", "tương tự hơn", "có vẻ giống", "giống hơn"],
+  "position_leak_forbidden": ["a là mặc định", "ưu tiên a", "b là phương án khác", "đầu tiên đúng hơn"],
+  "dataset_specific_literals": ["region", "province_name", "province_code", "speakerid", "filename", "audio_path", "sample_id"],
+  "approximate_policy_note": "These guards apply only when the canonical source match policy is exact."
+}
