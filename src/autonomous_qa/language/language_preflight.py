@@ -740,7 +740,11 @@ def _resource_identity() -> dict[str, Any]:
     }
 
 
-CANONICAL_PREFLIGHT_IMPLEMENTATION_SHA256 = "460909a2ecbab2d97d32a403f9dcb0f65c412a334f3c4dfc9154e8c2d8f62139"
+def get_canonical_preflight_implementation_sha256() -> str:
+    return sha256_file(Path(__file__))
+
+
+CANONICAL_PREFLIGHT_IMPLEMENTATION_SHA256 = get_canonical_preflight_implementation_sha256()
 
 
 def compute_contract_fingerprint(
@@ -754,7 +758,7 @@ def compute_contract_fingerprint(
         "preflight_implementation_sha256": (
             implementation_identity
             if implementation_identity is not None
-            else CANONICAL_PREFLIGHT_IMPLEMENTATION_SHA256
+            else get_canonical_preflight_implementation_sha256()
         ),
         "mode": mode,
         "resources": _resource_identity(),

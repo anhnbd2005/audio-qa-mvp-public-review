@@ -77,8 +77,11 @@ def validate_evidence(evidence: dict[str, Any]) -> list[str]:
     return failures
 
 
-def validate_catalog(catalog: SemanticCatalog) -> list[str]:
-    comparator_ids = {c.comparator_id for c in load_comparator_registry().comparators}
+def validate_catalog(
+    catalog: SemanticCatalog, comparator_ids: set[str] | None = None
+) -> list[str]:
+    if comparator_ids is None:
+        comparator_ids = {c.comparator_id for c in load_comparator_registry().comparators}
     issues: list[str] = []
     seen: set[str] = set()
     for task in catalog.tasks:
