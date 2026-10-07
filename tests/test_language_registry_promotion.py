@@ -194,6 +194,24 @@ def build_toy_tree(tmp: Path) -> dict:
     return {"resource_root": res, "base": base}
 
 
+def build_multi_dataset_tree(tmp: Path, dataset_ids: list[str]) -> dict:
+    """Synthetic tree with arbitrary dataset IDs, all pinning the base hash."""
+    res = tmp / "resources"
+    (res / "language").mkdir(parents=True)
+    (res / "production").mkdir(parents=True)
+    base = _registry([])
+    _write_json(res / "language" / "production_registry.json", base.model_dump(mode="json"))
+    _write_json(res / "language" / "candidate_capabilities.json", _toy_capability_resource())
+    for ds in dataset_ids:
+        contract = _contract(ds, base.registry_hash)
+        _write_json(res / "production" / f"{ds}.json", contract.model_dump(mode="json"))
+        _write_json(
+            res / "production" / f"{ds}.promotion.json",
+            _manifest(ds, base.registry_hash, contract).model_dump(mode="json"),
+        )
+    return {"resource_root": res, "base": base}
+
+
 def prepare_toy(tmp: Path, tree: dict, **overrides) -> LanguageRegistryPromotionBundle:
     res = tree["resource_root"]
     kwargs = dict(
@@ -203,8 +221,6 @@ def prepare_toy(tmp: Path, tree: dict, **overrides) -> LanguageRegistryPromotion
         fresh_accepted_types=[_toy_accepted()],
         fresh_dataset_label="toy_fresh",
         expected_candidate_hash=None,
-        certification_datasets=("toy",),
-        require_pass_datasets=frozenset({"toy"}),
         dataset_accepted_resolver=lambda ds: [_toy_accepted()],
     )
     kwargs.update(overrides)
@@ -281,6 +297,81 @@ def test_manifest_rebind_allowed_fields_only(tmp_path: Path):
         assert reloaded.language_registry_hash == bundle.promoted_registry_hash
 
 
+def test_certification_datasets_discovered_generically(tmp_path: Path):
+    tree = build_multi_dataset_tree(tmp_path, ["alpha", "beta", "gamma"])
+    bundle = prepare_toy(tmp_path, tree)
+    assert {
+        r.dataset_id for r in bundle.certification_evidence.dataset_results
+    } == {"alpha", "beta", "gamma"}
+    # discovery drives classification too
+    assert {
+        f.dataset_id for f in bundle.affected_resources if f.kind == "contract"
+    } == {"alpha", "beta", "gamma"}
+
+
+def test_certification_baseline_is_resource_root_hermetic(tmp_path: Path, monkeypatch):
+    import src.autonomous_qa.language.language_preflight as pf
+
+    real_registry = (RESOURCE_ROOT / "language" / "production_registry.json").resolve()
+    original = pf.load_language_registry
+
+    def guarded(path, *args, **kwargs):
+        if Path(path).resolve() == real_registry:
+            raise AssertionError(
+                "certification read the real ROOT canonical language registry"
+            )
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(pf, "load_language_registry", guarded)
+
+    tree = build_toy_tree(tmp_path)  # synthetic base has ZERO entries
+    speaker = AcceptedLanguageType(
+        dataset_type_id="toy_speaker",
+        operator="DIRECT",
+        semantic_class="categorical_attribute",
+        semantic_field="region",
+        answer_kind="field_value",
+        audio_input_count=1,
+        logical_context_inputs=0,
+        phrase_bindings={
+            "entity_scope": "speaker",
+            "entity_phrase": "người nói",
+            "attribute_phrase": "vùng",
+            "content_phrase": None,
+            "value_phrase": "vùng",
+            "unit": None,
+            "target_quote_style": "plain",
+        },
+    )
+    bundle = prepare_toy(
+        tmp_path,
+        tree,
+        fresh_accepted_types=[speaker],
+        dataset_accepted_resolver=lambda ds: [speaker],
+    )
+    results = {r.dataset_id: r for r in bundle.certification_evidence.dataset_results}
+    assert set(results) == {"toy_a", "toy_b"}
+    for result in results.values():
+        # Synthetic base has no compatible entries: baseline MUST fail. If it
+        # passed, the certification leaked the real ROOT registry.
+        assert result.baseline_status != "PREFLIGHT_PASS"
+        assert result.baseline_blocking > 0
+
+
+def test_certification_accepted_types_unavailable_fails_closed(tmp_path: Path):
+    tree = build_toy_tree(tmp_path)
+
+    def _no_resolver(dataset_id):
+        raise KeyError(dataset_id)
+
+    bundle = prepare_toy(tmp_path, tree, dataset_accepted_resolver=_no_resolver)
+    assert bundle.apply_ready is False
+    assert any(
+        f.startswith("CERTIFICATION_ACCEPTED_TYPES_UNAVAILABLE:")
+        for f in bundle.certification_evidence.failures
+    )
+
+
 def test_invalid_resource_fails_closed(tmp_path: Path):
     tree = build_toy_tree(tmp_path)
     (tree["resource_root"] / "production" / "broken.json").write_text(
@@ -297,19 +388,113 @@ def test_invalid_resource_fails_closed(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
+def _validated(data, **kwargs):
+    return validate_candidate_capability_resource(data, expected_language="vi", **kwargs)
+
+
 def test_candidate_language_mismatch_blocks():
     data = _toy_capability_resource(language="en")
     with pytest.raises(CandidateRegistryError) as exc:
-        validate_candidate_capability_resource(data, expected_language="vi")
+        _validated(data)
     assert exc.value.code == "LANGUAGE_CAPABILITY_LANGUAGE_MISMATCH"
+
+
+def test_schema_version_unsupported_blocks():
+    data = _toy_capability_resource()
+    data["schema_version"] = 2
+    with pytest.raises(CandidateRegistryError) as exc:
+        _validated(data)
+    assert exc.value.code == "CANDIDATE_CAPABILITIES_SCHEMA_UNSUPPORTED"
+
+
+def test_schema_version_wrong_type_blocks():
+    data = _toy_capability_resource()
+    data["schema_version"] = "1"
+    with pytest.raises(CandidateRegistryError) as exc:
+        _validated(data)
+    assert exc.value.code == "CANDIDATE_CAPABILITIES_SCHEMA_UNSUPPORTED"
+
+
+def test_empty_capability_set_id_blocks():
+    data = _toy_capability_resource()
+    data["capability_set_id"] = ""
+    with pytest.raises(CandidateRegistryError):
+        _validated(data)
+
+
+def test_non_string_language_blocks():
+    data = _toy_capability_resource()
+    data["language"] = ["vi"]
+    with pytest.raises(CandidateRegistryError):
+        _validated(data)
+
+
+def test_duplicate_capability_id_blocks():
+    data = _toy_capability_resource()
+    data["entries"].append(dict(data["entries"][0]))
+    with pytest.raises(CandidateRegistryError) as exc:
+        _validated(data)
+    assert exc.value.code == "DUPLICATE_LANGUAGE_ENTRY_ID"
+
+
+def test_invalid_semantic_class_blocks():
+    data = _toy_capability_resource()
+    data["entries"][0]["semantic_class"] = "not_a_class"
+    with pytest.raises(CandidateRegistryError):
+        _validated(data)
+
+
+def test_invalid_answer_kind_blocks():
+    data = _toy_capability_resource()
+    data["entries"][0]["answer_kind"] = "not_a_kind"
+    with pytest.raises(CandidateRegistryError):
+        _validated(data)
+
+
+def test_invalid_match_policy_blocks():
+    data = _toy_capability_resource()
+    data["entries"][0]["match_policy"] = ["not_a_policy"]
+    with pytest.raises(CandidateRegistryError):
+        _validated(data)
+
+
+def test_empty_entity_scopes_blocks():
+    data = _toy_capability_resource()
+    data["entries"][0]["entity_scopes"] = []
+    with pytest.raises(CandidateRegistryError) as exc:
+        _validated(data)
+    assert exc.value.code == "CANDIDATE_CAPABILITY_ENTITY_SCOPES_EMPTY"
+
+
+def test_required_slots_non_list_blocks():
+    data = _toy_capability_resource()
+    data["entries"][0]["required_slots"] = "[ATTRIBUTE_PHRASE]"
+    with pytest.raises(CandidateRegistryError):
+        _validated(data)
+
+
+def test_required_slot_absent_from_pattern_blocks():
+    data = _toy_capability_resource()
+    data["entries"][0]["required_slots"] = ["[MISSING_SLOT]"]
+    with pytest.raises(CandidateRegistryError) as exc:
+        _validated(data)
+    assert exc.value.code == "CANDIDATE_CAPABILITY_REQUIRED_SLOT_ABSENT"
+
+
+def test_required_optional_slot_overlap_blocks():
+    data = _toy_capability_resource()
+    data["entries"][0]["optional_slots"] = ["[ATTRIBUTE_PHRASE]"]
+    with pytest.raises(CandidateRegistryError) as exc:
+        _validated(data)
+    assert exc.value.code == "CANDIDATE_CAPABILITY_SLOT_OVERLAP"
 
 
 def test_malformed_capability_resource_blocks():
     data = _toy_capability_resource()
     del data["entries"][0]["pattern"]
     with pytest.raises(CandidateRegistryError) as exc:
-        validate_candidate_capability_resource(data, expected_language="vi")
-    assert exc.value.code == "CANDIDATE_CAPABILITY_KEY_MISSING"
+        _validated(data)
+    assert exc.value.code == "CANDIDATE_CAPABILITIES_MALFORMED"
 
 
 def test_sidecar_dataset_mismatch_blocks(tmp_path: Path):

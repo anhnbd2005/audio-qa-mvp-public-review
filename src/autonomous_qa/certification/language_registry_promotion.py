@@ -107,6 +107,32 @@ def _default_atomic_replace(src: str, dst: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+class DatasetCertificationResult(BaseModel):
+    """Generic per-dataset certification result. No dataset-specific fields."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    dataset_id: str
+    baseline_status: str
+    baseline_blocking: int
+    promoted_status: str
+    promoted_blocking: int
+    new_blocking: int
+    require_pass: bool
+    passed: bool
+
+
+class TargetCertificationResult(BaseModel):
+    """Generic result for the explicit target accepted-type set."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    label: str
+    status: str
+    blocking: int
+    passed: bool
+
+
 class CertificationEvidence(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -118,14 +144,10 @@ class CertificationEvidence(BaseModel):
     no_duplicate_ids: bool
     computed_hash_valid: bool
     registry_mode_preflight_pass: bool
-    vimd_no_new_blocking: bool
-    vietmdd_no_new_blocking: bool
-    vimedcss_canonical_no_new_blocking: bool
-    fresh_vimedcss_pass: bool
-    fresh_vimedcss_blocking: int
     deterministic_compilation: bool
+    dataset_results: tuple[DatasetCertificationResult, ...] = ()
+    target_result: TargetCertificationResult | None = None
     natural_render_evidence: dict[str, list[str]] = Field(default_factory=dict)
-    cross_dataset_results: list[dict[str, Any]] = Field(default_factory=list)
     certification_status: Literal["CERTIFIED", "NOT_CERTIFIED"] = "NOT_CERTIFIED"
     failures: tuple[str, ...] = ()
 
@@ -274,33 +296,53 @@ def _genericity_ok(capabilities: list[dict[str, Any]]) -> bool:
 
 def _dataset_delta(
     dataset: str,
-    promoted: ProductionLanguageRegistry,
-    promoted_path: Path,
+    *,
+    base_registry: ProductionLanguageRegistry,
+    base_registry_path: Path,
+    promoted_registry: ProductionLanguageRegistry,
+    promoted_registry_path: Path,
     accepted: list[Any],
-) -> dict[str, Any]:
+) -> DatasetCertificationResult:
+    """Baseline vs promoted preflight, both resolved through explicit registries.
+
+    The baseline MUST use the supplied base registry (never the global canonical
+    registry), so the result is hermetic to ``resource_root``.
+    """
     base = run_preflight(
-        mode="dataset", accepted_types=accepted, dataset=dataset, write_outputs=False
-    )
-    cand = run_preflight(
         mode="dataset",
         accepted_types=accepted,
         dataset=dataset,
         write_outputs=False,
-        registry=promoted,
-        registry_path=promoted_path,
+        registry=base_registry,
+        registry_path=base_registry_path,
     )
-    return {
-        "dataset": dataset,
-        "baseline_status": base["audit"]["result"],
-        "baseline_blocking": base["audit"]["blocking_issue_count"],
-        "candidate_status": cand["audit"]["result"],
-        "candidate_blocking": cand["audit"]["blocking_issue_count"],
-        "new_blocking": max(
-            0,
-            cand["audit"]["blocking_issue_count"]
-            - base["audit"]["blocking_issue_count"],
-        ),
-    }
+    promoted = run_preflight(
+        mode="dataset",
+        accepted_types=accepted,
+        dataset=dataset,
+        write_outputs=False,
+        registry=promoted_registry,
+        registry_path=promoted_registry_path,
+    )
+    baseline_status = base["audit"]["result"]
+    promoted_status = promoted["audit"]["result"]
+    baseline_blocking = base["audit"]["blocking_issue_count"]
+    promoted_blocking = promoted["audit"]["blocking_issue_count"]
+    new_blocking = max(0, promoted_blocking - baseline_blocking)
+    require_pass = baseline_status == "PREFLIGHT_PASS"
+    passed = new_blocking == 0 and (
+        promoted_status == "PREFLIGHT_PASS" if require_pass else True
+    )
+    return DatasetCertificationResult(
+        dataset_id=dataset,
+        baseline_status=baseline_status,
+        baseline_blocking=baseline_blocking,
+        promoted_status=promoted_status,
+        promoted_blocking=promoted_blocking,
+        new_blocking=new_blocking,
+        require_pass=require_pass,
+        passed=passed,
+    )
 
 
 def prepare_language_registry_promotion(
@@ -311,11 +353,15 @@ def prepare_language_registry_promotion(
     fresh_accepted_types: list[Any] | None = None,
     fresh_dataset_label: str = "fresh_selected",
     expected_candidate_hash: str | None = EXPECTED_PHASE4_2_CANDIDATE_HASH,
-    certification_datasets: tuple[str, ...] = ("vimd", "vietmdd", "vimedcss"),
-    require_pass_datasets: frozenset[str] = frozenset({"vimd", "vietmdd"}),
+    certification_dataset_ids: tuple[str, ...] | None = None,
     dataset_accepted_resolver: Callable[[str], list[Any]] | None = None,
 ) -> LanguageRegistryPromotionBundle:
-    """Build a deterministic language-registry promotion plan. Zero mutations."""
+    """Build a deterministic language-registry promotion plan. Zero mutations.
+
+    Certification datasets are discovered from the affected canonical
+    ProductionContracts / PromotionManifests. No dataset list is hardcoded;
+    ``certification_dataset_ids`` exists only as an explicit test/tool override.
+    """
     registry_path = resource_root / "language" / "production_registry.json"
     base = load_language_registry(registry_path)
 
@@ -349,6 +395,21 @@ def prepare_language_registry_promotion(
     candidate_path = scratch_root / "candidate_production_language_registry.json"
     write_registry_deterministically(candidate, candidate_path)
 
+    # -- generic affected-resource discovery (drives certification) ----------
+    raw_findings = _discover_production_resources(resource_root)
+    discovered_dataset_ids = sorted(
+        {
+            f.dataset_id
+            for f in raw_findings
+            if f.classification != "INVALID_RESOURCE" and f.dataset_id
+        }
+    )
+    dataset_ids = (
+        tuple(certification_dataset_ids)
+        if certification_dataset_ids is not None
+        else tuple(discovered_dataset_ids)
+    )
+
     # -- checks run against the candidate (pre-certification) ----------------
     failures: list[str] = []
     if expected_candidate_hash is not None and candidate.registry_hash != expected_candidate_hash:
@@ -371,30 +432,46 @@ def prepare_language_registry_promotion(
         failures.append("REGISTRY_MODE_PREFLIGHT_FAIL")
 
     resolver = dataset_accepted_resolver or get_dataset_accepted_types
-    cross_results = []
-    for ds in certification_datasets:
-        accepted = resolver(ds)
-        cross_results.append(_dataset_delta(ds, candidate, candidate_path, accepted))
-    by_ds = {row["dataset"]: row for row in cross_results}
-    dataset_no_new_blocking = {
-        ds: by_ds[ds]["new_blocking"] == 0 for ds in certification_datasets
-    }
-    dataset_pass = {
-        ds: by_ds[ds]["candidate_status"] == "PREFLIGHT_PASS" for ds in certification_datasets
-    }
-    vimd_ok = dataset_no_new_blocking.get("vimd", True) and dataset_pass.get("vimd", True)
-    vietmdd_ok = dataset_no_new_blocking.get("vietmdd", True) and dataset_pass.get("vietmdd", True)
-    vimedcss_ok = dataset_no_new_blocking.get("vimedcss", True)
-    for ds in certification_datasets:
-        if not dataset_no_new_blocking[ds]:
-            failures.append(f"{ds.upper()}_REGRESSION")
-        if ds in require_pass_datasets and not dataset_pass[ds]:
-            failures.append(f"{ds.upper()}_NOT_PASS")
 
-    fresh_pass = False
-    fresh_blocking = -1
+    def _resolve_accepted(dataset_id: str) -> tuple[list[Any] | None, str | None]:
+        try:
+            return resolver(dataset_id), None
+        except Exception:  # noqa: BLE001
+            return None, f"CERTIFICATION_ACCEPTED_TYPES_UNAVAILABLE:{dataset_id}"
+
+    dataset_results: list[DatasetCertificationResult] = []
+    for ds in dataset_ids:
+        accepted, error = _resolve_accepted(ds)
+        if error is not None:
+            failures.append(error)
+            dataset_results.append(
+                DatasetCertificationResult(
+                    dataset_id=ds,
+                    baseline_status="ACCEPTED_TYPES_UNAVAILABLE",
+                    baseline_blocking=-1,
+                    promoted_status="ACCEPTED_TYPES_UNAVAILABLE",
+                    promoted_blocking=-1,
+                    new_blocking=0,
+                    require_pass=True,
+                    passed=False,
+                )
+            )
+            continue
+        result = _dataset_delta(
+            ds,
+            base_registry=base,
+            base_registry_path=registry_path,
+            promoted_registry=candidate,
+            promoted_registry_path=candidate_path,
+            accepted=accepted,
+        )
+        dataset_results.append(result)
+        if not result.passed:
+            failures.append(f"CERTIFICATION_DATASET_FAILED:{ds}")
+
+    target_result: TargetCertificationResult | None = None
     if fresh_accepted_types is None:
-        failures.append("FRESH_ACCEPTED_TYPES_NOT_PROVIDED")
+        failures.append("TARGET_ACCEPTED_TYPES_NOT_PROVIDED")
     else:
         fresh = run_preflight(
             mode="dataset",
@@ -404,10 +481,17 @@ def prepare_language_registry_promotion(
             registry=candidate,
             registry_path=candidate_path,
         )
-        fresh_pass = fresh["audit"]["result"] == "PREFLIGHT_PASS" and fresh["audit"]["blocking_issue_count"] == 0
-        fresh_blocking = fresh["audit"]["blocking_issue_count"]
-        if not fresh_pass:
-            failures.append("FRESH_SELECTED_PREFLIGHT_FAIL")
+        target_result = TargetCertificationResult(
+            label=fresh_dataset_label,
+            status=fresh["audit"]["result"],
+            blocking=fresh["audit"]["blocking_issue_count"],
+            passed=(
+                fresh["audit"]["result"] == "PREFLIGHT_PASS"
+                and fresh["audit"]["blocking_issue_count"] == 0
+            ),
+        )
+        if not target_result.passed:
+            failures.append("TARGET_PREFLIGHT_FAIL")
 
     # -- natural render evidence for every added capability ------------------
     natural_render: dict[str, list[str]] = {}
@@ -432,14 +516,10 @@ def prepare_language_registry_promotion(
         no_duplicate_ids=len({e.language_entry_id for e in candidate.entries}) == len(candidate.entries),
         computed_hash_valid=candidate.registry_hash == candidate.computed_hash(),
         registry_mode_preflight_pass=registry_mode_pass,
-        vimd_no_new_blocking=vimd_ok,
-        vietmdd_no_new_blocking=vietmdd_ok,
-        vimedcss_canonical_no_new_blocking=vimedcss_ok,
-        fresh_vimedcss_pass=fresh_pass,
-        fresh_vimedcss_blocking=fresh_blocking,
         deterministic_compilation=deterministic_compilation,
+        dataset_results=tuple(dataset_results),
+        target_result=target_result,
         natural_render_evidence=natural_render,
-        cross_dataset_results=cross_results,
     )
     certified = not failures
     if certified:
@@ -454,7 +534,7 @@ def prepare_language_registry_promotion(
     write_registry_deterministically(promoted, promoted_path)
 
     # Section 16: prove the PROMOTED (certified) registry behaves identically
-    # to the candidate under registry-mode and cross-dataset preflight.
+    # to the candidate under registry-mode, cross-dataset and target preflight.
     registry_mode_promoted = run_preflight(
         mode="registry",
         write_outputs=False,
@@ -465,15 +545,29 @@ def prepare_language_registry_promotion(
         registry_mode_promoted["audit"]["result"] == "PREFLIGHT_PASS"
     ) != registry_mode_pass:
         failures.append("PROMOTED_REGISTRY_PREFLIGHT_MISMATCH")
-    cross_results_promoted = [
-        _dataset_delta(ds, promoted, promoted_path, resolver(ds))
-        for ds in certification_datasets
-    ]
-    for base_row, promoted_row in zip(cross_results, cross_results_promoted):
-        if promoted_row["new_blocking"] != base_row["new_blocking"] or (
-            promoted_row["candidate_status"] != base_row["candidate_status"]
+
+    dataset_results_promoted: list[DatasetCertificationResult] = []
+    for ds, previous in zip(dataset_ids, dataset_results):
+        accepted, error = _resolve_accepted(ds)
+        if error is not None:
+            dataset_results_promoted.append(previous)
+            continue
+        promoted_result = _dataset_delta(
+            ds,
+            base_registry=base,
+            base_registry_path=registry_path,
+            promoted_registry=promoted,
+            promoted_registry_path=promoted_path,
+            accepted=accepted,
+        )
+        dataset_results_promoted.append(promoted_result)
+        if (
+            promoted_result.passed != previous.passed
+            or promoted_result.new_blocking != previous.new_blocking
+            or promoted_result.promoted_status != previous.promoted_status
         ):
-            failures.append(f"PROMOTED_CROSS_DATASET_MISMATCH:{promoted_row['dataset']}")
+            failures.append(f"PROMOTED_CERTIFICATION_MISMATCH:{ds}")
+
     if fresh_accepted_types is not None:
         fresh_promoted = run_preflight(
             mode="dataset",
@@ -483,13 +577,17 @@ def prepare_language_registry_promotion(
             registry=promoted,
             registry_path=promoted_path,
         )
-        fresh_pass = (
-            fresh_promoted["audit"]["result"] == "PREFLIGHT_PASS"
-            and fresh_promoted["audit"]["blocking_issue_count"] == 0
+        target_result = TargetCertificationResult(
+            label=fresh_dataset_label,
+            status=fresh_promoted["audit"]["result"],
+            blocking=fresh_promoted["audit"]["blocking_issue_count"],
+            passed=(
+                fresh_promoted["audit"]["result"] == "PREFLIGHT_PASS"
+                and fresh_promoted["audit"]["blocking_issue_count"] == 0
+            ),
         )
-        fresh_blocking = fresh_promoted["audit"]["blocking_issue_count"]
-        if not fresh_pass:
-            failures.append("PROMOTED_FRESH_PREFLIGHT_FAIL")
+        if not target_result.passed:
+            failures.append("PROMOTED_TARGET_PREFLIGHT_FAIL")
 
     certified = certified and not any(
         f.startswith("PROMOTED_") for f in failures
@@ -498,18 +596,17 @@ def prepare_language_registry_promotion(
     evidence = preliminary.model_copy(
         update={
             "promoted_registry_hash": promoted.registry_hash,
-            "cross_dataset_results": cross_results_promoted,
-            "fresh_vimedcss_pass": fresh_pass,
-            "fresh_vimedcss_blocking": fresh_blocking,
+            "dataset_results": tuple(dataset_results_promoted),
+            "target_result": target_result,
             "certification_status": "CERTIFIED" if certified else "NOT_CERTIFIED",
             "failures": tuple(failures),
         }
     )
 
-    # -- generic affected-resource discovery + classification ----------------
+    # -- classification ------------------------------------------------------
     findings = [
         _classify(f, base.registry_hash, promoted.registry_hash)
-        for f in _discover_production_resources(resource_root)
+        for f in raw_findings
     ]
 
     # -- rebind plans --------------------------------------------------------
@@ -659,9 +756,15 @@ def prepare_language_registry_promotion(
             "promoted_registry_hash": promoted.registry_hash,
             "certification_status": evidence.certification_status,
             "failures": list(evidence.failures),
-            "cross_dataset_results": cross_results,
-            "fresh_vimedcss_pass": fresh_pass,
-            "fresh_vimedcss_blocking": fresh_blocking,
+            "certification_dataset_ids": list(dataset_ids),
+            "dataset_results": [
+                r.model_dump(mode="json") for r in evidence.dataset_results
+            ],
+            "target_result": (
+                evidence.target_result.model_dump(mode="json")
+                if evidence.target_result
+                else None
+            ),
             "natural_render_evidence": natural_render,
         },
     )

@@ -17,9 +17,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping
 
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
+from src.autonomous_qa.compiler.semantic_field_specs import SemanticClass
 from src.autonomous_qa.language.language_quality import (
     LanguageRegistryEntry,
     ProductionLanguageRegistry,
@@ -36,23 +40,21 @@ CANDIDATE_CAPABILITIES_RESOURCE = (
 
 CANDIDATE_VERSION_SUFFIX = "+phase4_2_candidate"
 
-_OPERATORS = frozenset(
-    {"DIRECT", "EQUALITY", "PAIRWISE_SELECTION", "TARGET_MATCH", "COMPOSITE"}
-)
-_UNIT_POLICIES = frozenset({"required", "forbidden", "any"})
-_OWNERS = frozenset({"slot", "literal", "none"})
-_REQUIRED_CAPABILITY_KEYS = (
-    "capability_id",
-    "operator",
-    "semantic_class",
-    "answer_kind",
-    "pattern",
-    "required_slots",
-    "unit_policy",
-    "match_policy",
-    "entity_scopes",
-    "entity_reference_owner",
-)
+SUPPORTED_CAPABILITY_SCHEMA_VERSION = 1
+
+CapabilityOperator = Literal[
+    "DIRECT", "EQUALITY", "PAIRWISE_SELECTION", "TARGET_MATCH", "COMPOSITE"
+]
+CapabilityUnitPolicy = Literal["required", "forbidden", "any"]
+CapabilityOwner = Literal["slot", "literal", "none"]
+CapabilityMatchPolicy = Literal[
+    "exact", "bucket", "tolerance", "set_exact", "set_overlap"
+]
+CapabilityAnswerKind = Literal[
+    "field_value", "boolean", "audio_index", "structured"
+]
+
+_SLOT_TOKEN_RE = re.compile(r"^\[[A-Z][A-Z0-9_]*\]$")
 
 
 class CandidateRegistryError(RuntimeError):
@@ -62,40 +64,104 @@ class CandidateRegistryError(RuntimeError):
         super().__init__(f"{code}:{detail}" if detail else code)
 
 
+class CandidateCapabilityEntry(BaseModel):
+    """Strict schema for one dataset-neutral language capability entry."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    capability_id: str = Field(min_length=1)
+    operator: CapabilityOperator
+    semantic_class: SemanticClass
+    answer_kind: CapabilityAnswerKind
+    pattern: str = Field(min_length=1)
+    required_slots: list[str]
+    optional_slots: list[str] = Field(default_factory=list)
+    unit_policy: CapabilityUnitPolicy
+    match_policy: list[CapabilityMatchPolicy]
+    entity_scopes: list[str]
+    entity_reference_owner: CapabilityOwner
+
+
+class CandidateCapabilityResource(BaseModel):
+    """Strict schema for the capability resource contract."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int
+    capability_set_id: str = Field(min_length=1)
+    language: str = Field(min_length=1)
+    entries: list[CandidateCapabilityEntry]
+
+
 def validate_candidate_capability_resource(
     data: Any, *, expected_language: str | None = None
 ) -> list[dict[str, Any]]:
-    """Validate the capability resource contract before building entries."""
+    """Validate the capability resource contract before building entries.
+
+    Fails closed with explicit machine codes. Never relies on KeyError.
+    """
     if not isinstance(data, Mapping):
         raise CandidateRegistryError("CANDIDATE_CAPABILITIES_MALFORMED", "not_an_object")
-    for key in ("schema_version", "capability_set_id", "language", "entries"):
-        if key not in data:
-            raise CandidateRegistryError("CANDIDATE_CAPABILITIES_MALFORMED", f"missing:{key}")
-    language = data["language"]
-    if expected_language is not None and language != expected_language:
+
+    schema_version = data.get("schema_version")
+    if (
+        not isinstance(schema_version, int)
+        or isinstance(schema_version, bool)
+        or schema_version != SUPPORTED_CAPABILITY_SCHEMA_VERSION
+    ):
+        raise CandidateRegistryError(
+            "CANDIDATE_CAPABILITIES_SCHEMA_UNSUPPORTED", str(schema_version)
+        )
+
+    try:
+        resource = CandidateCapabilityResource.model_validate(data)
+    except ValidationError as exc:
+        raise CandidateRegistryError(
+            "CANDIDATE_CAPABILITIES_MALFORMED", str(exc)
+        ) from exc
+
+    if expected_language is not None and resource.language != expected_language:
         raise CandidateRegistryError(
             "LANGUAGE_CAPABILITY_LANGUAGE_MISMATCH",
-            f"{language}!={expected_language}",
+            f"{resource.language}!={expected_language}",
         )
-    entries = data["entries"]
-    if not isinstance(entries, list):
-        raise CandidateRegistryError("CANDIDATE_CAPABILITIES_MALFORMED", "entries_not_list")
-    for entry in entries:
-        if not isinstance(entry, Mapping):
-            raise CandidateRegistryError("CANDIDATE_CAPABILITIES_MALFORMED", "entry_not_object")
-        for key in _REQUIRED_CAPABILITY_KEYS:
-            if key not in entry:
+
+    ids = [entry.capability_id for entry in resource.entries]
+    duplicates = sorted({i for i in ids if ids.count(i) > 1})
+    if duplicates:
+        raise CandidateRegistryError(
+            "DUPLICATE_LANGUAGE_ENTRY_ID", ",".join(duplicates)
+        )
+
+    for entry in resource.entries:
+        if not entry.entity_scopes:
+            raise CandidateRegistryError(
+                "CANDIDATE_CAPABILITY_ENTITY_SCOPES_EMPTY", entry.capability_id
+            )
+        if not entry.match_policy:
+            raise CandidateRegistryError(
+                "CANDIDATE_CAPABILITY_MATCH_POLICY_EMPTY", entry.capability_id
+            )
+        for slot in list(entry.required_slots) + list(entry.optional_slots):
+            if not _SLOT_TOKEN_RE.match(slot):
                 raise CandidateRegistryError(
-                    "CANDIDATE_CAPABILITY_KEY_MISSING",
-                    f"{entry.get('capability_id', '?')}:{key}",
+                    "CANDIDATE_CAPABILITY_MALFORMED_SLOT",
+                    f"{entry.capability_id}:{slot}",
                 )
-        if entry["operator"] not in _OPERATORS:
-            raise CandidateRegistryError("CANDIDATE_CAPABILITY_INVALID_OPERATOR", str(entry["operator"]))
-        if entry["unit_policy"] not in _UNIT_POLICIES:
-            raise CandidateRegistryError("CANDIDATE_CAPABILITY_INVALID_UNIT_POLICY", str(entry["unit_policy"]))
-        if entry["entity_reference_owner"] not in _OWNERS:
-            raise CandidateRegistryError("CANDIDATE_CAPABILITY_INVALID_OWNER", str(entry["entity_reference_owner"]))
-    return entries
+        overlap = sorted(set(entry.required_slots) & set(entry.optional_slots))
+        if overlap:
+            raise CandidateRegistryError(
+                "CANDIDATE_CAPABILITY_SLOT_OVERLAP",
+                f"{entry.capability_id}:{overlap}",
+            )
+        for slot in entry.required_slots:
+            if slot not in entry.pattern:
+                raise CandidateRegistryError(
+                    "CANDIDATE_CAPABILITY_REQUIRED_SLOT_ABSENT",
+                    f"{entry.capability_id}:{slot}",
+                )
+
+    return [entry.model_dump() for entry in resource.entries]
 
 
 def load_candidate_capabilities(
