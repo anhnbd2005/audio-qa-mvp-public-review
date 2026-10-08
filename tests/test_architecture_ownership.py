@@ -45,6 +45,35 @@ def test_obsolete_planning_modules_removed():
             importlib.import_module(f"src.autonomous_qa.production.{name}")
 
 
+def test_source_preparation_accepts_precomputed_rows_and_sha(tmp_path):
+    # Single-read path: callers may pass parsed rows + the file SHA256 so the
+    # source file is never read twice in one preparation workflow.
+    inv = source_preparation.prepare_source_inventory(
+        dataset="d",
+        split="train",
+        path=tmp_path / "missing.jsonl",
+        rows=[{"segment_id": "s1", "topic": "A"}],
+        eligibility_fields=["topic"],
+        sha256="a" * 64,
+    )
+    assert inv.sha256 == "a" * 64
+    assert inv.row_count == 1
+
+
+def test_load_flat_metadata_with_sha_matches_two_step(tmp_path):
+    import json
+
+    path = tmp_path / "m.jsonl"
+    path.write_text(
+        "\n".join(json.dumps(r) for r in [{"segment_id": "s1"}, {"segment_id": "s2"}]) + "\n",
+        encoding="utf-8",
+    )
+    rows, sha = production_qa.load_flat_metadata_with_sha(path)
+    assert [r["segment_id"] for r in rows] == ["s1", "s2"]
+    assert sha == production_qa.sha256_file(path)
+    assert rows == production_qa.load_flat_metadata(path)
+
+
 def test_retained_frozen_dependencies_resolver_present():
     # `frozen_dependencies.py` resolves the committed `resources/frozen/` evidence
     # store; retained (not removed) to avoid orphaning certified artifacts.

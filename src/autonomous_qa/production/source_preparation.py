@@ -167,18 +167,23 @@ def prepare_source_inventory(
     group_fields: list[str] | None = None,
     expected_sha256: str | None = None,
     expected_rows: int | None = None,
+    sha256: str | None = None,
 ) -> SourceInventory:
     """Validate and inventory one source split (loads the file at most once).
 
     Minimal by design: identity + SHA256 + row count + schema + per-field
     eligibility counts + label-group counts. No EDA, no audio decode.
+
+    Callers that already hold the parsed ``rows`` and/or the file ``sha256``
+    pass them in to avoid redundant full-file reads.
     """
     path = Path(path)
     if rows is None:
         if not path.exists():
             raise BudgetAuthorityError("SOURCE_MISSING", str(path))
         rows = load_jsonl_rows(path)
-    sha256 = hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else ""
+    if sha256 is None:
+        sha256 = hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else ""
 
     if expected_sha256 is not None and sha256 != expected_sha256:
         raise BudgetAuthorityError(

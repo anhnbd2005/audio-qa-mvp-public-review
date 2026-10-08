@@ -121,6 +121,7 @@ DATASET_SOURCES: dict[str, dict[str, Any]] = {
         "type_registry": ROOT / "resources" / "semantics" / "vimd_type_registry.json",
         "dataset_profile": ROOT / "resources" / "datasets" / "vimd.json",
         "language_registry": CANONICAL_REGISTRY_PATH,
+        "field_specs": vimd_field_specs,
     },
     "vimedcss": {
         "repo": "vimedcss",
@@ -132,6 +133,7 @@ DATASET_SOURCES: dict[str, dict[str, Any]] = {
         "type_registry": ROOT / "resources" / "semantics" / "vimedcss_semantic_catalog.json",
         "dataset_profile": ROOT / "resources" / "datasets" / "vimedcss.json",
         "language_registry": CANONICAL_REGISTRY_PATH,
+        "field_specs": vimedcss_field_specs,
     },
 }
 
@@ -359,6 +361,17 @@ def verify_canonical_resources(dataset: str = "vimd") -> dict[str, Any]:
 def load_flat_metadata(path: Path) -> list[dict[str, Any]]:
     with path.open(encoding="utf-8") as handle:
         return [json.loads(line) for line in handle if line.strip()]
+
+
+def load_flat_metadata_with_sha(path: Path) -> tuple[list[dict[str, Any]], str]:
+    """Read a metadata JSONL once, returning rows and the file SHA256."""
+    data = Path(path).read_bytes()
+    rows = [
+        json.loads(line)
+        for line in data.decode("utf-8").splitlines()
+        if line.strip()
+    ]
+    return rows, hashlib.sha256(data).hexdigest()
 
 
 
@@ -956,8 +969,7 @@ def run_production_qa(
     forbidden_splits = sorted(dataset_spec.split_policy.get("forbidden_splits", []))
     model_training_allowed = split == production_split
 
-    rows = load_flat_metadata(source["metadata_path"])
-    metadata_sha256 = sha256_file(source["metadata_path"])
+    rows, metadata_sha256 = load_flat_metadata_with_sha(source["metadata_path"])
     model_training_rows_used = len(rows) if model_training_allowed else 0
     row_count_ok = (
         source["expected_rows"] is None or len(rows) == source["expected_rows"]
@@ -1005,12 +1017,10 @@ def run_production_qa(
     deferred = [
         item.type_id for item in contracts_all if item.source_status != "SUPPORTED"
     ]
-    if dataset == "vimd":
-        specs = vimd_field_specs()
-    elif dataset == "vimedcss":
-        specs = vimedcss_field_specs()
-    else:
+    field_specs_fn = source.get("field_specs")
+    if field_specs_fn is None:
         raise ProductionQAError("DATASET_UNSUPPORTED", dataset)
+    specs = field_specs_fn()
     contract_map = {contract.type_id: contract for contract in contracts}
 
     index = index_dataset_rows(
@@ -1150,6 +1160,7 @@ def run_production_qa(
         ),
         expected_sha256=source.get("expected_sha256"),
         expected_rows=source.get("expected_rows"),
+        sha256=metadata_sha256,
     )
     write_json(run_dir / "source_preparation.json", inventory.to_dict())
 

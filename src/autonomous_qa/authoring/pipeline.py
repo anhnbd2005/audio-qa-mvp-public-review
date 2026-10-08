@@ -1045,6 +1045,7 @@ def run_authoring(
         rows=rows,
         identity_field=cfg.record_identity_field,
         eligibility_fields=sorted(cfg.field_roles.keys()),
+        sha256=profile["materialized_sha256"],
     )
     _write_json(run_dir / "preparation.json", inventory.to_dict())
     early_budget = resolve_early_budget(
