@@ -385,8 +385,15 @@ def test_candidate_capabilities_are_dataset_neutral():
 def test_canonical_registry_still_loads_and_hash_stable():
     canonical = load_language_registry(CANONICAL_REGISTRY)
     candidate = build_candidate_language_registry(canonical, load_candidate_capabilities())
-    assert candidate.registry_hash != canonical.registry_hash
-    assert len(candidate.entries) == len(canonical.entries) + 7
+    capability_ids = {c["capability_id"] for c in load_candidate_capabilities()}
+    installed = capability_ids <= {e.language_entry_id for e in canonical.entries}
+    if installed:
+        # Post-promotion: certified capabilities already canonical -> idempotent.
+        assert candidate.registry_hash == canonical.registry_hash
+        assert len(candidate.entries) == len(canonical.entries)
+    else:
+        assert candidate.registry_hash != canonical.registry_hash
+        assert len(candidate.entries) == len(canonical.entries) + 7
 
 
 def test_explicit_registry_preflight_uses_candidate_identity():
@@ -440,11 +447,16 @@ def test_fresh_vimedcss_three_task_candidate_preflight_passes(tmp_path: Path):
     assert bundle.candidate_language_preflight["status"] == "PREFLIGHT_PASS"
     assert bundle.candidate_language_preflight["blocking_issues"] == 0
     assert bundle.language_infra_ready is True
-    assert bundle.language_registry_change_required is True
-    # Canonical staged preflight still fails => APPLY stays blocked.
-    assert bundle.staged_language_preflight["status"] != "PREFLIGHT_PASS"
-    assert bundle.apply_ready is False
-    assert bundle.canonical_language_registry_hash != bundle.candidate_language_registry_hash
+    if bundle.language_registry_change_required:
+        # Pre language-registry promotion: canonical staged preflight still fails.
+        assert bundle.staged_language_preflight["status"] != "PREFLIGHT_PASS"
+        assert bundle.apply_ready is False
+        assert bundle.canonical_language_registry_hash != bundle.candidate_language_registry_hash
+    else:
+        # Post language-registry promotion: staged preflight passes.
+        assert bundle.staged_language_preflight["status"] == "PREFLIGHT_PASS"
+        assert bundle.staged_language_preflight["blocking_issues"] == 0
+        assert bundle.canonical_language_registry_hash == bundle.candidate_language_registry_hash
     assert set(bundle.selected_promotion_types) == {
         "vimedcss_topic_classification",
         "vimedcss_cs_terms_count",

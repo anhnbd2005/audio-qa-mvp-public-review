@@ -81,8 +81,8 @@ EXPECTED_CANONICAL = {
         "file_sha256": "6262ee1031e1f036da5a173d1da8ee7638d9e788ae168832ede684afe0ea6b65",
     },
     "production_registry": {
-        "registry_hash": "267a747d95016457831ede80993648c612079f2a473e62af79e3e030413e425f",
-        "file_sha256": "3bb6c49dc9525dc2bc6fab49af04757588f570e6954fd7d539ded5c39182a7dd",
+        "registry_hash": "b35320756d541f925a16d4cd0758e86104a9d63c4f172b0e70e6bfdddb3680a1",
+        "file_sha256": "57a9dcb5ae199394051682ac2904f721e0774b3c195d2b1e4a3493d864fec6be",
     },
     "dataset_profile": {
         "file_sha256": "1c193444d07e3d04392080d150118b52b84496b0ecd98f684e465cc557ac4a80"

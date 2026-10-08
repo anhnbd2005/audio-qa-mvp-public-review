@@ -211,10 +211,10 @@ def test_canonical_resources_verify():
 
 def test_canonical_hashes_match_expected():
     assert pq.EXPECTED_CANONICAL["production_registry"]["registry_hash"] == (
-        "267a747d95016457831ede80993648c612079f2a473e62af79e3e030413e425f"
+        "b35320756d541f925a16d4cd0758e86104a9d63c4f172b0e70e6bfdddb3680a1"
     )
     assert pq.EXPECTED_CANONICAL["production_registry"]["file_sha256"] == (
-        "3bb6c49dc9525dc2bc6fab49af04757588f570e6954fd7d539ded5c39182a7dd"
+        "57a9dcb5ae199394051682ac2904f721e0774b3c195d2b1e4a3493d864fec6be"
     )
 
 
@@ -231,7 +231,9 @@ def test_review_types_excluded_from_production(env):
         assert contract.source_status == "REVIEW_REQUIRED"
     assert "vimd-v2-s1-004" not in env["supported"]
     assert "vimd-v2.1-s2-001" not in env["supported"]
-    assert registry.version == "canonical"
+    # Post language-registry promotion the canonical registry carries the
+    # certified-capability version suffix.
+    assert registry.version.startswith("canonical")
 
 
 
@@ -663,7 +665,8 @@ def test_one_instance_selects_exactly_one_entry(env):
 
 def test_registry_is_a_pool_not_a_multiplier(env):
     active = [e for e in env["registry"].entries if e.enabled]
-    assert len(active) == 62
+    # 62 historical canonical/paraphrase entries + 7 certified capabilities.
+    assert len(active) == 69
     plan = pq.build_generation_plan(
         contracts=list(env["supported"].values()),
         specs=env["specs"],

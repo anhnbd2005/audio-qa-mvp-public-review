@@ -69,15 +69,16 @@ def dataset_result():
 def test_registry_mode_covers_every_active_entry(registry_result):
     audit = registry_result["audit"]
     assert audit["result"] == "PREFLIGHT_PASS"
-    assert audit["entries_checked"] == 62
+    # 62 historical entries + 7 certified capabilities.
+    assert audit["entries_checked"] == 69
     assert len(audit["required_capability_set"]) == 13
     assert audit["fixture_count"] == 52
-    assert audit["synthetic_render_count"] == 910
+    assert audit["synthetic_render_count"] == 970
     assert audit["blocking_issue_count"] == 0
     assert audit["review_issue_count"] == 0
     assert (
         len({row["language_entry_id"] for row in registry_result["render_matrix"]})
-        == 62
+        == 69
     )
 
 

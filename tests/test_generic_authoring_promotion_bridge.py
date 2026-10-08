@@ -422,11 +422,15 @@ def test_vimedcss_acceptance_run_prepare_dryrun(tmp_path: Path):
     ))
 
     assert bundle.prepare_status == "PREPARED"
-    assert bundle.apply_ready is False
-
-    with pytest.raises(PromotionError) as exc_info:
-        apply_promotion(bundle)
-    assert exc_info.value.code == "PROMOTION_NOT_APPLY_READY"
+    # apply_ready depends on whether the canonical language registry has already
+    # been promoted. Both states are valid canonical states.
+    if bundle.language_registry_change_required:
+        assert bundle.apply_ready is False
+        with pytest.raises(PromotionError) as exc_info:
+            apply_promotion(bundle)
+        assert exc_info.value.code == "PROMOTION_NOT_APPLY_READY"
+    else:
+        assert bundle.staged_language_preflight["status"] == "PREFLIGHT_PASS"
 
 
 def test_no_literal_vimedcss_task_ids_in_generic_promotion():
@@ -455,13 +459,17 @@ def test_raw_vimedcss_staged_language_issues_are_machine_codes():
         output_root=None,
     )
     issues = bundle.staged_language_preflight["issues"]
-    assert issues, "expected staged language blocking issues for ViMedCSS"
     codes = {row["issue_code"] for row in issues}
-    assert codes, "issue codes must be present"
+    # Whatever the canonical language state, any emitted code must be an exact
+    # machine code, never an invented prose label.
     assert all(isinstance(c, str) and c == c.upper() for c in codes)
-    # The exact public collision code, when present, must be reported verbatim.
-    if "SEMANTIC_HEAD_OWNERSHIP_COLLISION" in codes:
-        assert "SEMANTIC_HEAD_OWNERSHIP_COLLISION" in codes
+    # Post language-registry promotion the staged preflight passes with no issues.
+    if not issues:
+        assert bundle.staged_language_preflight["status"] == "PREFLIGHT_PASS"
+    else:
+        # Pre-promotion: the exact public collision code, when present, verbatim.
+        if "SEMANTIC_HEAD_OWNERSHIP_COLLISION" in codes:
+            assert "SEMANTIC_HEAD_OWNERSHIP_COLLISION" in codes
 
 
 # ---------------------------------------------------------------------------

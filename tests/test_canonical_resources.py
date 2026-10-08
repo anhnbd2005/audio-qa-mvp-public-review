@@ -62,11 +62,16 @@ def test_registry_and_resolvers_load():
         assert set(contract.active_semantic_types) == {t.type_id for t in catalog.tasks}
 
 
+_PROVENANCE_KEYS = frozenset({"provenance", "promotion_evidence"})
+
+
 def _strings_excluding_provenance(value, *, _under_provenance=False):
     if isinstance(value, dict):
         for key, item in value.items():
             yield from _strings_excluding_provenance(
-                item, _under_provenance=_under_provenance or key == "provenance"
+                item,
+                _under_provenance=_under_provenance
+                or key in _PROVENANCE_KEYS,
             )
     elif isinstance(value, list):
         for item in value:

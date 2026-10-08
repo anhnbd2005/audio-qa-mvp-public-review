@@ -1,14 +1,4 @@
 {
-  "schema_version": 1,
-  "dataset_id": "vietmdd",
-  "dataset_spec_hash": "c4d97e57af2032938bbbc94a76b5018d1e1d741661611f02af10ab31f64ddb76",
-  "semantic_catalog_hash": "1e66471491f3f5df30061f3a435f99503d21d2588811e3a56b1938431d90b143",
-  "comparator_registry_hash": "ce799d351b3f393175ec3d8f6a62fe7e2cb646a9220fbde5a0af49a868b1536c",
-  "comparator_referenced_hashes": {
-    "exact_normalized_text": "e1e8313c719131ee07d3be2aba59e5ab9ec40b35c63634160fef817b0ac05e7d",
-    "spoken_lexical_content_equivalence": "9a6ce26ce7eea64b30915c748ef217cb59274bddcd01763f3134f0f6359b7165"
-  },
-  "language_registry_hash": "267a747d95016457831ede80993648c612079f2a473e62af79e3e030413e425f",
   "active_semantic_types": [
     "vietmdd_direct_observed_text",
     "vietmdd_target_match_observed_text",
@@ -17,6 +7,15 @@
     "vietmdd_selection_observed_text",
     "vietmdd_composite_transcribe_pair_equality"
   ],
+  "comparator_referenced_hashes": {
+    "exact_normalized_text": "e1e8313c719131ee07d3be2aba59e5ab9ec40b35c63634160fef817b0ac05e7d",
+    "spoken_lexical_content_equivalence": "9a6ce26ce7eea64b30915c748ef217cb59274bddcd01763f3134f0f6359b7165"
+  },
+  "comparator_registry_hash": "ce799d351b3f393175ec3d8f6a62fe7e2cb646a9220fbde5a0af49a868b1536c",
+  "dataset_id": "vietmdd",
+  "dataset_spec_hash": "c4d97e57af2032938bbbc94a76b5018d1e1d741661611f02af10ab31f64ddb76",
+  "language_registry_hash": "b35320756d541f925a16d4cd0758e86104a9d63c4f172b0e70e6bfdddb3680a1",
+  "migration_source": "composite_output_component_leakage_repair",
   "production_planner_policy": {
     "allowed_splits": [
       "train"
@@ -25,29 +24,30 @@
   },
   "promotion_evidence": {
     "dataset_profile": {
-      "status": "VALID",
-      "note": "composite leakage repair"
+      "note": "composite leakage repair",
+      "status": "VALID"
+    },
+    "language_preflight": {
+      "fingerprint": "d164a8ee8a32feddf8f993a22dd7a4ec38d27fc9818d4b46b1c64f883f7c04a2",
+      "status": "PASS"
+    },
+    "production_readiness": {
+      "note": "composite leakage repair",
+      "status": "VALID"
     },
     "semantic_contracts": {
-      "status": "VALID",
-      "catalog_hash": "1e66471491f3f5df30061f3a435f99503d21d2588811e3a56b1938431d90b143"
-    },
-    "semantic_invariance": {
-      "status": "PASS"
+      "catalog_hash": "1e66471491f3f5df30061f3a435f99503d21d2588811e3a56b1938431d90b143",
+      "status": "VALID"
     },
     "semantic_feasibility": {
       "status": "VALID"
     },
-    "language_preflight": {
-      "status": "PASS",
-      "fingerprint": "d164a8ee8a32feddf8f993a22dd7a4ec38d27fc9818d4b46b1c64f883f7c04a2"
-    },
-    "production_readiness": {
-      "status": "VALID",
-      "note": "composite leakage repair"
+    "semantic_invariance": {
+      "status": "PASS"
     }
   },
-  "status": "PROMOTED",
-  "migration_source": "composite_output_component_leakage_repair",
-  "promotion_fingerprint": "79e4285827d04c8edec49f2bbb7551be23d44d74d3f134e0eb6f869382508183"
+  "promotion_fingerprint": "01fc1456278fc437a8b3ec0d858d2c5459825754889bb5cde3adfa5878e8160b",
+  "schema_version": 1,
+  "semantic_catalog_hash": "1e66471491f3f5df30061f3a435f99503d21d2588811e3a56b1938431d90b143",
+  "status": "PROMOTED"
 }

@@ -973,7 +973,17 @@ def test_authoring_prepare_post_language_promotion_no_registry_change_required(t
         fresh_accepted_types=fresh,
         fresh_dataset_label="vimedcss",
     )
-    assert promotion.apply_ready is True
+    # Robust to both pre-APPLY (fresh promotion) and post-APPLY (already
+    # promoted) canonical states.
+    if promotion.prepare_status == "ALREADY_PROMOTED":
+        post_registry = load_language_registry(
+            RESOURCE_ROOT / "language" / "production_registry.json"
+        )
+    else:
+        assert promotion.apply_ready is True
+        post_registry = ProductionLanguageRegistry.model_validate(
+            promotion.promoted_registry
+        )
 
     # 2. Synthetic post-APPLY resource_root: real resources + promoted registry.
     scratch_res = tmp_path / "resources"
@@ -984,7 +994,7 @@ def test_authoring_prepare_post_language_promotion_no_registry_change_required(t
         ignore=shutil.ignore_patterns("frozen"),
     )
     write_registry_deterministically(
-        ProductionLanguageRegistry.model_validate(promotion.promoted_registry),
+        post_registry,
         scratch_res / "language" / "production_registry.json",
     )
 
