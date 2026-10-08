@@ -297,3 +297,21 @@ def test_audit_module_does_not_import_llm():
     source = (ROOT / "tests" / "regression" / "production_plan_audit.py").read_text(encoding="utf-8")
     assert "llm_client" not in source
     assert "openai" not in source.lower()
+
+
+def test_split_policy_reports_actual_split(tmp_path, rows):
+    summary, _ = _run(tmp_path, rows)
+    manifest = json.loads(
+        (Path(summary["run_dir"]) / "input_manifest.json").read_text(encoding="utf-8")
+    )
+    policy = manifest["split_policy"]
+    assert policy["generation_split"] == "train"
+    assert policy["qa_generation_rows"] == len(rows)
+    assert policy["qa_generation_allowed"] is True
+    assert policy["model_training_split"] == "train"
+    assert policy["model_training_allowed"] is True
+    assert policy["model_training_rows_used"] == len(rows)
+    # stale hardcoded counters must be gone
+    assert "train_rows_used" not in policy
+    assert "valid_rows_used" not in policy
+    assert "test_rows_used" not in policy

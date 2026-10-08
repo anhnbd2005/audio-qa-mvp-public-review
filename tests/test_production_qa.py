@@ -507,7 +507,7 @@ def test_pairwise_gold_follows_position(env):
 
 
 def test_pairwise_both_match_and_neither_are_invalid(env):
-    import tests.regression.qa_audit as qa
+    import src.autonomous_qa.production.qa_audit as qa
 
     spec = env["specs"]["region"]
     both = {
@@ -790,7 +790,7 @@ def test_answer_without_audio_is_flagged(env):
     broken["operator"] = "DIRECT"
     broken["internal"]["hidden_values"] = ["LEAKED_VALUE"]
     broken["question"] = broken["question"] + " LEAKED_VALUE"
-    from tests.regression.qa_audit import audit_record
+    from src.autonomous_qa.production.qa_audit import audit_record
 
     failures = audit_record(
         broken,

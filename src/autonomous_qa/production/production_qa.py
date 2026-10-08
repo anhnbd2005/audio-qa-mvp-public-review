@@ -24,9 +24,14 @@ from src.autonomous_qa.production.source_indexing import (
     index_dataset_rows,
 )
 from src.autonomous_qa.production.source_preparation import (
+    ApprovedAllocation,
+    build_allocation_contract,
+    filter_by_operator_policy,
     finalize_allocation,
     prepare_source_inventory,
     resolve_early_budget,
+    validate_operator_policy,
+    verify_allocation_contract,
 )
 from src.autonomous_qa.language.language_quality import (
     LanguageRegistryEntry,
@@ -42,7 +47,7 @@ from src.autonomous_qa.language.template_engine import (
     vimd_field_specs,
     vimedcss_field_specs,
 )
-from tests.regression.qa_audit import (
+from src.autonomous_qa.production.qa_audit import (
     audit_qa_records,
     build_distribution_audit,
 )
@@ -572,7 +577,24 @@ def build_generation_plan(
     dataset: str,
     dataset_revision: str,
     split: str = "train",
+    authorized_allocation: ApprovedAllocation | None = None,
 ) -> dict[str, Any]:
+    # The planner consumes the AUTHORIZED allocation and must not compute its
+    # own budget. If an authorized allocation is supplied, it is hash-verified
+    # and must match ``budget_by_type`` exactly.
+    if authorized_allocation is not None:
+        verify_allocation_contract(
+            authorized_allocation, error_class=ProductionQAError
+        )
+        approved = {
+            str(k): int(v) for k, v in authorized_allocation.per_type_budget.items()
+        }
+        requested = {str(k): int(v) for k, v in budget_by_type.items()}
+        if requested != approved:
+            raise ProductionQAError(
+                "PLANNER_ALLOCATION_MISMATCH",
+                f"requested={requested}!={approved}",
+            )
     settings = _sampling_settings(config)
     reuse = ReuseTracker(
         global_cap=settings.max_source_row_reuse,
@@ -659,6 +681,11 @@ def build_generation_plan(
         "reuse": reuse,
         "fingerprint": fingerprint,
         "semantic_duplicates_rejected": duplicates_rejected,
+        "requested_total": expected,
+        "approved_total": None
+        if authorized_allocation is None
+        else authorized_allocation.total_approved,
+        "planned_total": len(records),
     }
 
 
@@ -922,8 +949,16 @@ def run_production_qa(
 
     preflight_gate = enforce_language_preflight_gate(dataset=dataset, config=config)
 
+    from src.autonomous_qa.compiler.canonical_resources import get_dataset_spec
+
+    dataset_spec = get_dataset_spec(dataset)
+    production_split = dataset_spec.split_policy.get("production_split")
+    forbidden_splits = sorted(dataset_spec.split_policy.get("forbidden_splits", []))
+    model_training_allowed = split == production_split
+
     rows = load_flat_metadata(source["metadata_path"])
     metadata_sha256 = sha256_file(source["metadata_path"])
+    model_training_rows_used = len(rows) if model_training_allowed else 0
     row_count_ok = (
         source["expected_rows"] is None or len(rows) == source["expected_rows"]
     )
@@ -955,6 +990,18 @@ def run_production_qa(
     raw_type_registry = json.loads(source["type_registry"].read_text(encoding="utf-8"))
     contracts_all = build_type_contracts(raw_type_registry)
     contracts = [item for item in contracts_all if item.source_status == "SUPPORTED"]
+    allowed_operator_families = validate_operator_policy(config.allowed_operator_families)
+    contracts, rejected_contracts = filter_by_operator_policy(
+        contracts, allowed_operator_families, id_key="type_id", operator_key="operator"
+    )
+    write_json(
+        run_dir / "operator_policy.json",
+        {
+            "allowed_operator_families": list(allowed_operator_families),
+            "rejected": rejected_contracts,
+            "rejected_count": len(rejected_contracts),
+        },
+    )
     deferred = [
         item.type_id for item in contracts_all if item.source_status != "SUPPORTED"
     ]
@@ -1004,10 +1051,13 @@ def run_production_qa(
             "run_id": run_id,
             "row_identity": identity_audit,
             "split_policy": {
-                "train_rows_used": len(rows),
-                "valid_rows_used": 0,
-                "test_rows_used": 0,
-                "sauvi": False,
+                "generation_split": split,
+                "qa_generation_rows": len(rows),
+                "qa_generation_allowed": split in set(dataset_spec.allowed_splits),
+                "model_training_split": production_split,
+                "model_training_allowed": model_training_allowed,
+                "model_training_rows_used": model_training_rows_used,
+                "forbidden_splits": forbidden_splits,
             },
         },
     )
@@ -1023,14 +1073,15 @@ def run_production_qa(
         "sha256": metadata_sha256,
         "expected_sha256": source["expected_sha256"],
         "sha256_match": sha_ok,
-        "complete_official_train": complete_train,
+        "complete_source_split": complete_train,
         "row_identity": identity_audit,
         "fields": sorted(index.rows_by_value),
         "hidden_identifier_field": config.sampling.hidden_identifier_field,
         "gender_qa": "PROHIBITED_UNDOCUMENTED_ENCODING",
-        "valid_rows_used": 0,
-        "test_rows_used": 0,
-        "sauvi": False,
+        "qa_generation_split": split,
+        "model_training_split": production_split,
+        "model_training_allowed": model_training_allowed,
+        "model_training_rows_used": model_training_rows_used,
     }
     write_json(run_dir / "metadata_audit.json", metadata_audit)
     write_json(run_dir / "index_summary.json", index.summary())
@@ -1038,7 +1089,8 @@ def run_production_qa(
         run_dir / "capacity_audit.json",
         {
             "metadata_rows": len(rows),
-            "complete_official_train": complete_train,
+            "complete_source_split": complete_train,
+            "split": split,
             "complexity": "O(N) grouping; no O(N^2) pair enumeration",
             "types": capacities,
         },
@@ -1127,6 +1179,16 @@ def run_production_qa(
         run_dir / "allocation.json",
         {key: value for key, value in finalized.items() if key != "budget"},
     )
+    allocation_contract = build_allocation_contract(
+        early=early_budget,
+        contracts=contracts,
+        allocation=finalized["allocation"],
+        config=config,
+        authorization="AUTHORIZED",
+        provenance={"run_id": run_id, "config_path": str(config_path), "mode": mode},
+        error_class=ProductionQAError,
+    )
+    write_json(run_dir / "allocation_contract.json", allocation_contract.to_dict())
 
     write_json(
         run_dir / "determinism_readiness.json",
@@ -1182,6 +1244,7 @@ def run_production_qa(
                 dataset=dataset,
                 dataset_revision=source["revision"],
                 split=split,
+                authorized_allocation=allocation_contract,
             )
         except (BudgetShortfallError, ProductionQAError) as exc:
             blocked_reasons.append(f"PLAN_FAILED:{exc}")
@@ -1206,6 +1269,7 @@ def run_production_qa(
             dataset=dataset,
             dataset_revision=source["revision"],
             split=split,
+            authorized_allocation=allocation_contract,
         )
         determinism = {
             "plan_fingerprint": plan_result["fingerprint"],
@@ -1326,9 +1390,11 @@ def run_production_qa(
         "llm_calls_total": 0,
     }
     safety = {
-        "train_only": True,
-        "valid_rows_used": 0,
-        "test_rows_used": 0,
+        "generation_split": split,
+        "model_training_split": production_split,
+        "model_training_allowed": model_training_allowed,
+        "model_training_rows_used": model_training_rows_used,
+        "forbidden_splits": forbidden_splits,
         "sauvi": False,
         "hf_download": 0,
         "audio_decode": 0,

@@ -45,8 +45,11 @@ from typing import Any
 
 from src.autonomous_qa.language.language_quality import ProductionGenerationConfig
 from src.autonomous_qa.production.source_preparation import (
+    filter_by_operator_policy,
     prepare_source_inventory,
+    propose_allocation,
     resolve_early_budget,
+    validate_operator_policy,
 )
 from src.common.config import ROOT, resolve_llm_base_url, resolve_llm_model
 
@@ -1097,6 +1100,14 @@ def run_authoring(
         },
     )
     primitives = (prim_result.get("parsed") or {}).get("candidates") or []
+    # Operator policy is deterministic and enforced BEFORE candidate gates, so no
+    # LLM budget is spent repairing an explicitly disallowed operator.
+    allowed_families = validate_operator_policy(
+        production_config.allowed_operator_families if production_config else ()
+    )
+    primitives, rejected_primitives = filter_by_operator_policy(
+        list(primitives), allowed_families, id_key="candidate_id"
+    )
     seen: set[str] = set()
     primitive_gates = [
         gate_primitive_candidate(c, profile, cfg, seen)
@@ -1173,6 +1184,23 @@ def run_authoring(
         },
     )
     composites = (comp_result.get("parsed") or {}).get("composites") or []
+    composite_items = [
+        {**c, "operator": c.get("operator", "COMPOSITE")}
+        if isinstance(c, dict)
+        else c
+        for c in composites
+    ]
+    composites, rejected_composites = filter_by_operator_policy(
+        composite_items, allowed_families, id_key="composite_id"
+    )
+    _write_json(
+        run_dir / "operator_policy.json",
+        {
+            "allowed_operator_families": list(allowed_families),
+            "rejected_primitives": rejected_primitives,
+            "rejected_composites": rejected_composites,
+        },
+    )
     primitives_by_id = {
         str(c.get("candidate_id")): c
         for c in accepted_primitives
@@ -1222,6 +1250,27 @@ def run_authoring(
     language_gates = [
         gate_language_entry(e) for e in language_entries if isinstance(e, dict)
     ]
+    accepted_type_ids = sorted(
+        {
+            str(c.get("candidate_id"))
+            for c in accepted_primitives
+            if isinstance(c, dict) and c.get("candidate_id")
+        }
+    )
+    if production_config is not None:
+        proposed_allocation = propose_allocation(
+            early=early_budget,
+            accepted_type_ids=accepted_type_ids,
+            config=production_config,
+        )
+    else:
+        proposed_allocation = {
+            "authorization": "EXPLORATORY",
+            "accepted_types": accepted_type_ids,
+            "per_type_budget": {},
+            "note": "no production budget requested; proposal not authorized",
+        }
+    _write_json(run_dir / "proposed_allocation.json", proposed_allocation)
     _write_json(
         run_dir / "language" / "preflight.json",
         {"entries": language_gates, "reviews": language_reviews},
@@ -1271,6 +1320,12 @@ def run_authoring(
         "profile_sha256": profile["materialized_sha256"],
         "source_inventory": inventory.to_dict(),
         "early_budget": early_budget.to_dict(),
+        "operator_policy": {
+            "allowed_operator_families": list(allowed_families),
+            "rejected_primitives": rejected_primitives,
+            "rejected_composites": rejected_composites,
+        },
+        "proposed_allocation": proposed_allocation,
         "llm_calls_by_stage": call_counts,
         "total_real_llm_calls": sum(call_counts.values()),
         "llm_provenance": llm_provenance,

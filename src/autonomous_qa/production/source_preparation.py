@@ -36,7 +36,10 @@ from pathlib import Path
 from typing import Any
 
 from src.autonomous_qa.language.language_quality import ProductionGenerationConfig
-from src.autonomous_qa.language.template_contracts import TypeContract
+from src.autonomous_qa.language.template_contracts import (
+    TypeContract,
+    operator_contracts,
+)
 from src.autonomous_qa.language.template_renderer import canonical_hash
 from src.autonomous_qa.production.budget import (
     derive_full_split_budget,
@@ -49,6 +52,64 @@ class BudgetAuthorityError(RuntimeError):
         self.code = code
         self.detail = detail
         super().__init__(f"{code}:{detail}" if detail else code)
+
+
+# ---------------------------------------------------------------------------
+# OPERATOR POLICY ENFORCEMENT (generic; no dataset-specific allowlists)
+# ---------------------------------------------------------------------------
+
+
+def supported_operators() -> frozenset[str]:
+    """The authoritative operator universe (single source of truth)."""
+    return frozenset(operator_contracts())
+
+
+def validate_operator_policy(allowed: tuple[str, ...] | list[str]) -> tuple[str, ...]:
+    """Reject unsupported operator names in an explicit policy."""
+    unknown = sorted(set(allowed) - supported_operators())
+    if unknown:
+        raise BudgetAuthorityError(
+            "OPERATOR_POLICY_UNKNOWN_OPERATOR", ",".join(unknown)
+        )
+    return tuple(allowed)
+
+
+def operator_allowed(operator: str | None, allowed: tuple[str, ...] | list[str]) -> bool:
+    """Empty policy means 'no restriction' (all supported operators)."""
+    return not allowed or operator in set(allowed)
+
+
+def filter_by_operator_policy(
+    items: list[dict[str, Any]],
+    allowed: tuple[str, ...] | list[str],
+    *,
+    id_key: str,
+    operator_key: str = "operator",
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Split items into (accepted, rejected-by-policy) with explicit reasons.
+
+    Never redistributes a rejected item's budget and never repairs candidates.
+    """
+    def _attr(item: Any, key: str) -> Any:
+        if isinstance(item, dict):
+            return item.get(key)
+        return getattr(item, key, None)
+
+    accepted: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for item in items:
+        operator = _attr(item, operator_key)
+        if operator_allowed(operator, allowed):
+            accepted.append(item)
+        else:
+            rejected.append(
+                {
+                    "candidate_id": _attr(item, id_key),
+                    "operator": operator,
+                    "reason": "OPERATOR_NOT_ALLOWED",
+                }
+            )
+    return accepted, rejected
 
 
 # ---------------------------------------------------------------------------
@@ -269,13 +330,14 @@ def resolve_early_budget(
     else:
         status = "READY_AWAITING_BUDGET"
 
+    allowed = validate_operator_policy(config.allowed_operator_families)
     payload = {
         "dataset": inventory.dataset,
         "split": inventory.split,
         "coverage_mode": coverage_mode,
         "target_total_qa": target_total,
         "target_qa_per_audio": per_audio,
-        "allowed_operator_families": list(config.allowed_operator_families),
+        "allowed_operator_families": list(allowed),
         "shortfall_policy": config.shortfall_policy,
         "source_fingerprint": inventory.fingerprint,
     }
@@ -285,7 +347,7 @@ def resolve_early_budget(
         coverage_mode=coverage_mode,
         target_total_qa=target_total,
         target_qa_per_audio=per_audio,
-        allowed_operator_families=tuple(config.allowed_operator_families),
+        allowed_operator_families=allowed,
         shortfall_policy=config.shortfall_policy,
         source_fingerprint=inventory.fingerprint,
         status=status,
@@ -358,5 +420,253 @@ def finalize_allocation(
         "shortfall": shortfall,
         "shortfall_policy": early.shortfall_policy,
         "status": budget["status"],
+        "early_budget_fingerprint": early.fingerprint,
+    }
+
+
+# ---------------------------------------------------------------------------
+# CANONICAL FROZEN ALLOCATION CONTRACT (single budget authority)
+# ---------------------------------------------------------------------------
+
+ALLOCATION_SCHEMA_VERSION = 1
+
+
+@dataclass(frozen=True)
+class ApprovedAllocation:
+    """Authorized per-type budget, bound to source/contracts/sampling identity."""
+
+    schema_version: int
+    dataset: str
+    split: str
+    source_fingerprint: str
+    early_budget_fingerprint: str
+    semantic_contract_fingerprint: str
+    sampling_fingerprint: str
+    seed: int
+    shortfall_policy: str
+    per_type_budget: dict[str, int]
+    total_approved: int
+    target_total_qa: int | None
+    shortfall: int | None
+    authorization: str
+    provenance: dict[str, Any]
+    fingerprint: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "dataset": self.dataset,
+            "split": self.split,
+            "source_fingerprint": self.source_fingerprint,
+            "early_budget_fingerprint": self.early_budget_fingerprint,
+            "semantic_contract_fingerprint": self.semantic_contract_fingerprint,
+            "sampling_fingerprint": self.sampling_fingerprint,
+            "seed": self.seed,
+            "shortfall_policy": self.shortfall_policy,
+            "per_type_budget": dict(self.per_type_budget),
+            "total_approved": self.total_approved,
+            "target_total_qa": self.target_total_qa,
+            "shortfall": self.shortfall,
+            "authorization": self.authorization,
+            "provenance": dict(self.provenance),
+            "fingerprint": self.fingerprint,
+        }
+
+
+def semantic_contract_fingerprint(contracts: list[TypeContract]) -> str:
+    payload = sorted(
+        (
+            {
+                "type_id": c.type_id,
+                "operator": c.operator,
+                "semantic_field": c.semantic_field,
+                "answer_kind": c.answer_kind,
+                "source_status": c.source_status,
+            }
+            for c in contracts
+        ),
+        key=lambda item: item["type_id"],
+    )
+    return canonical_hash(payload)
+
+
+def sampling_fingerprint(config: ProductionGenerationConfig) -> str:
+    return canonical_hash(
+        {
+            "seed": config.seed,
+            "sampling": config.sampling.model_dump(mode="json"),
+            "boolean": config.boolean.model_dump(mode="json"),
+            "selection": config.selection.model_dump(mode="json"),
+        }
+    )
+
+
+def _allocation_payload(
+    *,
+    schema_version: int,
+    dataset: str,
+    split: str,
+    source_fingerprint: str,
+    early_budget_fingerprint: str,
+    semantic_contract_fp: str,
+    sampling_fp: str,
+    seed: int,
+    shortfall_policy: str,
+    per_type_budget: dict[str, int],
+    total_approved: int,
+    target_total_qa: int | None,
+    shortfall: int | None,
+    authorization: str,
+    provenance: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "schema_version": schema_version,
+        "dataset": dataset,
+        "split": split,
+        "source_fingerprint": source_fingerprint,
+        "early_budget_fingerprint": early_budget_fingerprint,
+        "semantic_contract_fingerprint": semantic_contract_fp,
+        "sampling_fingerprint": sampling_fp,
+        "seed": seed,
+        "shortfall_policy": shortfall_policy,
+        "per_type_budget": dict(sorted(per_type_budget.items())),
+        "total_approved": total_approved,
+        "target_total_qa": target_total_qa,
+        "shortfall": shortfall,
+        "authorization": authorization,
+        "provenance": provenance,
+    }
+
+
+def build_allocation_contract(
+    *,
+    early: EarlyBudget,
+    contracts: list[TypeContract],
+    allocation: dict[str, int],
+    config: ProductionGenerationConfig,
+    authorization: str,
+    provenance: dict[str, Any] | None = None,
+    error_class: type[Exception] = BudgetAuthorityError,
+) -> ApprovedAllocation:
+    allocation = {str(k): int(v) for k, v in allocation.items()}
+    shortfall = assert_allocation_within_budget(
+        early, allocation, error_class=error_class
+    )
+    if shortfall and early.shortfall_policy == "fail":
+        raise error_class("EARLY_BUDGET_SHORTFALL", str(shortfall))
+    payload = _allocation_payload(
+        schema_version=ALLOCATION_SCHEMA_VERSION,
+        dataset=early.dataset,
+        split=early.split,
+        source_fingerprint=early.source_fingerprint,
+        early_budget_fingerprint=early.fingerprint,
+        semantic_contract_fp=semantic_contract_fingerprint(contracts),
+        sampling_fp=sampling_fingerprint(config),
+        seed=int(config.seed or 0),
+        shortfall_policy=early.shortfall_policy,
+        per_type_budget=allocation,
+        total_approved=sum(allocation.values()),
+        target_total_qa=early.target_total_qa,
+        shortfall=shortfall,
+        authorization=authorization,
+        provenance=dict(provenance or {}),
+    )
+    return ApprovedAllocation(
+        schema_version=ALLOCATION_SCHEMA_VERSION,
+        dataset=early.dataset,
+        split=early.split,
+        source_fingerprint=early.source_fingerprint,
+        early_budget_fingerprint=early.fingerprint,
+        semantic_contract_fingerprint=payload["semantic_contract_fingerprint"],
+        sampling_fingerprint=payload["sampling_fingerprint"],
+        seed=payload["seed"],
+        shortfall_policy=payload["shortfall_policy"],
+        per_type_budget=allocation,
+        total_approved=payload["total_approved"],
+        target_total_qa=early.target_total_qa,
+        shortfall=shortfall,
+        authorization=authorization,
+        provenance=payload["provenance"],
+        fingerprint=canonical_hash(payload),
+    )
+
+
+def verify_allocation_contract(
+    contract: ApprovedAllocation,
+    *,
+    dataset: str | None = None,
+    split: str | None = None,
+    source_fingerprint: str | None = None,
+    semantic_contract_fp: str | None = None,
+    sampling_fp: str | None = None,
+    early_budget_fingerprint: str | None = None,
+    error_class: type[Exception] = BudgetAuthorityError,
+) -> None:
+    """Reject stale/tampered/mismatched allocation contracts."""
+    payload = _allocation_payload(
+        schema_version=contract.schema_version,
+        dataset=contract.dataset,
+        split=contract.split,
+        source_fingerprint=contract.source_fingerprint,
+        early_budget_fingerprint=contract.early_budget_fingerprint,
+        semantic_contract_fp=contract.semantic_contract_fingerprint,
+        sampling_fp=contract.sampling_fingerprint,
+        seed=contract.seed,
+        shortfall_policy=contract.shortfall_policy,
+        per_type_budget=contract.per_type_budget,
+        total_approved=contract.total_approved,
+        target_total_qa=contract.target_total_qa,
+        shortfall=contract.shortfall,
+        authorization=contract.authorization,
+        provenance=contract.provenance,
+    )
+    if canonical_hash(payload) != contract.fingerprint:
+        raise error_class("ALLOCATION_CONTRACT_TAMPERED", contract.dataset)
+    expected = {
+        "dataset": dataset,
+        "split": split,
+        "source_fingerprint": source_fingerprint,
+        "semantic_contract_fingerprint": semantic_contract_fp,
+        "sampling_fingerprint": sampling_fp,
+        "early_budget_fingerprint": early_budget_fingerprint,
+    }
+    for name, value in expected.items():
+        if value is not None and getattr(contract, name) != value:
+            raise error_class(
+                "ALLOCATION_CONTRACT_MISMATCH", f"{name}:{getattr(contract, name)}!={value}"
+            )
+    if contract.total_approved != sum(contract.per_type_budget.values()):
+        raise error_class("ALLOCATION_CONTRACT_INCONSISTENT", "total")
+
+
+def propose_allocation(
+    *,
+    early: EarlyBudget,
+    accepted_type_ids: list[str],
+    config: ProductionGenerationConfig,
+) -> dict[str, Any]:
+    """Informational PROPOSED allocation — never authorized production truth."""
+    types = sorted(set(accepted_type_ids))
+    if not types:
+        proposed: dict[str, int] = {}
+    elif config.per_type_budget:
+        proposed = {t: int(config.per_type_budget.get(t, 0)) for t in types}
+    elif early.target_total_qa is not None:
+        base, rem = divmod(early.target_total_qa, len(types))
+        proposed = {t: base + (1 if i < rem else 0) for i, t in enumerate(types)}
+    else:
+        proposed = {t: 0 for t in types}
+    total = sum(proposed.values())
+    return {
+        "authorization": "PROPOSED",
+        "dataset": early.dataset,
+        "split": early.split,
+        "accepted_types": types,
+        "per_type_budget": proposed,
+        "total_proposed": total,
+        "target_total_qa": early.target_total_qa,
+        "shortfall": None
+        if early.target_total_qa is None
+        else early.target_total_qa - total,
         "early_budget_fingerprint": early.fingerprint,
     }
