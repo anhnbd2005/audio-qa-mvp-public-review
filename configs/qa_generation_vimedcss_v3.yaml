@@ -7,6 +7,10 @@
 seed: 42
 split: train
 coverage_mode: full_split
+# Early target budget (authoritative production intent): 2 DIRECT types (topic,
+# cs_terms_count) + 4 SAME + 4 DIFFERENT pairwise = 10 QA per eligible audio.
+# The approved per-type allocation may not exceed this envelope.
+target_qa_per_audio: 10
 
 strict_budget: true
 allocation_policy: equal_by_type

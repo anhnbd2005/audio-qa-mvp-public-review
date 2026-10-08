@@ -17,7 +17,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import yaml
+
 from src.autonomous_qa.authoring.pipeline import DATASETS, run_authoring
+from src.autonomous_qa.language.language_quality import ProductionGenerationConfig
 
 
 def main() -> int:
@@ -34,11 +37,25 @@ def main() -> int:
         action="store_true",
         help="Require fixture-dir; perform zero network calls.",
     )
+    parser.add_argument(
+        "--production-config",
+        default=None,
+        help=(
+            "Optional production budget policy YAML. When omitted, authoring runs "
+            "in EXPLORATORY mode (no fabricated production budget)."
+        ),
+    )
     args = parser.parse_args()
 
     if args.offline and not args.fixture_dir:
         print("OFFLINE requires --fixture-dir", file=sys.stderr)
         return 2
+
+    production_config = None
+    if args.production_config:
+        production_config = ProductionGenerationConfig.model_validate(
+            yaml.safe_load(Path(args.production_config).read_text(encoding="utf-8"))
+        )
 
     try:
         manifest = run_authoring(
@@ -46,6 +63,7 @@ def main() -> int:
             run_id=args.run_id,
             real_llm=not args.offline,
             fixture_dir=Path(args.fixture_dir) if args.fixture_dir else None,
+            production_config=production_config,
         )
     except Exception as exc:  # noqa: BLE001
         print(f"LLM_RND_STAGE_FAILED: {type(exc).__name__}: {exc}", file=sys.stderr)

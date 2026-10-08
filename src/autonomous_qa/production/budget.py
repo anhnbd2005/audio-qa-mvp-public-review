@@ -13,6 +13,38 @@ from src.autonomous_qa.language.language_quality import ProductionGenerationConf
 from src.autonomous_qa.language.template_contracts import TypeContract
 
 
+def derive_full_split_budget(
+    config: ProductionGenerationConfig,
+    contracts: list[TypeContract],
+    capacities: dict[str, dict[str, Any]],
+) -> dict[str, int] | None:
+    """Derive a full-split budget from eligible anchors (generic).
+
+    DIRECT -> one QA per eligible row; EQUALITY anchor-neighborhood ->
+    eligible_anchors * (positive_per_anchor + negative_per_anchor). Returns
+    None for any operator/strategy combination that has no defined full-split
+    budget, so callers can fail closed.
+    """
+    pos = config.sampling.equality_positive_per_anchor
+    neg = config.sampling.equality_negative_per_anchor
+    budgets: dict[str, int] = {}
+    for contract in contracts:
+        capacity = capacities.get(contract.type_id)
+        if capacity is None:
+            return None
+        anchors = int(capacity.get("evidence_summary", {}).get("valid_rows", 0))
+        if contract.operator == "DIRECT":
+            budgets[contract.type_id] = anchors
+        elif (
+            contract.operator == "EQUALITY"
+            and config.sampling.equality_strategy == "anchor_neighborhood"
+        ):
+            budgets[contract.type_id] = anchors * (pos + neg)
+        else:
+            return None
+    return budgets
+
+
 def resolve_budget(
     config: ProductionGenerationConfig,
     contracts: list[TypeContract],

@@ -23,6 +23,11 @@ from src.autonomous_qa.production.source_indexing import (
     build_row_identities,
     index_dataset_rows,
 )
+from src.autonomous_qa.production.source_preparation import (
+    finalize_allocation,
+    prepare_source_inventory,
+    resolve_early_budget,
+)
 from src.autonomous_qa.language.language_quality import (
     LanguageRegistryEntry,
     ProductionGenerationConfig,
@@ -555,38 +560,6 @@ def _sampling_settings(
     )
 
 
-def derive_full_split_budget(
-    config: ProductionGenerationConfig,
-    contracts: list[TypeContract],
-    capacities: dict[str, dict[str, Any]],
-) -> dict[str, int] | None:
-    """Derive a full-split budget from eligible anchors (generic).
-
-    DIRECT -> one QA per eligible row; EQUALITY anchor-neighborhood ->
-    eligible_anchors * (positive_per_anchor + negative_per_anchor). Returns
-    None for any operator/strategy combination that has no defined full-split
-    budget, so callers can fail closed.
-    """
-    pos = config.sampling.equality_positive_per_anchor
-    neg = config.sampling.equality_negative_per_anchor
-    budgets: dict[str, int] = {}
-    for contract in contracts:
-        capacity = capacities.get(contract.type_id)
-        if capacity is None:
-            return None
-        anchors = int(capacity.get("evidence_summary", {}).get("valid_rows", 0))
-        if contract.operator == "DIRECT":
-            budgets[contract.type_id] = anchors
-        elif (
-            contract.operator == "EQUALITY"
-            and config.sampling.equality_strategy == "anchor_neighborhood"
-        ):
-            budgets[contract.type_id] = anchors * (pos + neg)
-        else:
-            return None
-    return budgets
-
-
 def build_generation_plan(
     *,
     contracts: list[TypeContract],
@@ -1113,22 +1086,47 @@ def run_production_qa(
         },
     )
 
-    budget_config = config
-    if config.coverage_mode == "full_split":
-        derived = derive_full_split_budget(config, contracts, capacities)
-        if derived is None:
-            raise ProductionQAError(
-                "FULL_SPLIT_COVERAGE_UNSUPPORTED",
-                ",".join(sorted(c.type_id for c in contracts)),
-            )
-        budget_config = config.model_copy(update={"per_type_budget": derived})
-    budget = resolve_budget(
-        budget_config,
-        contracts,
-        capacities,
-        debug_cap=debug_sample if mode == "debug_sample" else None,
+    inventory = prepare_source_inventory(
+        dataset=dataset,
+        split=split,
+        path=source["metadata_path"],
+        rows=rows,
+        identity_field=source.get("row_key_field"),
+        eligibility_fields=sorted(specs.keys()),
+        group_fields=sorted(
+            {c.semantic_field for c in contracts if c.operator == "EQUALITY"}
+        ),
+        expected_sha256=source.get("expected_sha256"),
+        expected_rows=source.get("expected_rows"),
     )
+    write_json(run_dir / "source_preparation.json", inventory.to_dict())
+
+    eligible_anchors = max(
+        (
+            int(payload.get("evidence_summary", {}).get("valid_rows", 0))
+            for payload in capacities.values()
+        ),
+        default=0,
+    )
+    early_budget = resolve_early_budget(
+        inventory=inventory, config=config, eligible_anchors=eligible_anchors
+    )
+    write_json(run_dir / "early_budget.json", early_budget.to_dict())
+
+    finalized = finalize_allocation(
+        early=early_budget,
+        contracts=contracts,
+        capacities=capacities,
+        config=config,
+        debug_cap=debug_sample if mode == "debug_sample" else None,
+        error_class=ProductionQAError,
+    )
+    budget = finalized["budget"]
     write_json(run_dir / "budget_resolution.json", budget)
+    write_json(
+        run_dir / "allocation.json",
+        {key: value for key, value in finalized.items() if key != "budget"},
+    )
 
     write_json(
         run_dir / "determinism_readiness.json",

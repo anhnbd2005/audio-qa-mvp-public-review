@@ -304,6 +304,13 @@ class ProductionGenerationConfig(BaseModel):
     # "explicit" uses per_type_budget/total_target_qa; "full_split" derives the
     # budget from the actual eligible-anchor count of the selected split.
     coverage_mode: Literal["explicit", "full_split"] = "explicit"
+    # Early target budget (authoritative production intent, set BEFORE any LLM
+    # semantic discovery). ``target_qa_per_audio`` expresses intent per eligible
+    # source audio; the resolved ``target_total_qa`` is the hard envelope the
+    # approved per-type allocation may not exceed.
+    target_qa_per_audio: int | None = Field(default=None, ge=1)
+    allowed_operator_families: tuple[str, ...] = ()
+    shortfall_policy: Literal["fail", "cap", "report"] = "report"
     total_target_qa: int | None = Field(default=None, ge=1)
     per_type_budget: dict[str, int] | None = None
     per_language_pattern_budget: dict[str, int] | None = None

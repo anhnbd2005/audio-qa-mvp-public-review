@@ -365,7 +365,7 @@ def test_v3_config_resolves_4_4_and_full_split_mode():
 
 
 def test_full_split_budget_derived_from_anchors():
-    from src.autonomous_qa.production.production_qa import derive_full_split_budget
+    from src.autonomous_qa.production.budget import derive_full_split_budget
 
     raw = yaml.safe_load(
         (ROOT / "configs" / "qa_generation_vimedcss_v3.yaml").read_text(encoding="utf-8")

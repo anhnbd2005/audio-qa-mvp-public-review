@@ -43,6 +43,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from src.autonomous_qa.language.language_quality import ProductionGenerationConfig
+from src.autonomous_qa.production.source_preparation import (
+    prepare_source_inventory,
+    resolve_early_budget,
+)
 from src.common.config import ROOT, resolve_llm_base_url, resolve_llm_model
 
 RUNS_ROOT = ROOT / "outputs" / "runs"
@@ -370,8 +375,13 @@ def load_rows(cfg: DatasetAuthoringConfig) -> list[dict]:
     ]
 
 
-def profile_dataset(cfg: DatasetAuthoringConfig, run_dir: Path) -> dict[str, Any]:
-    rows = load_rows(cfg)
+def profile_dataset(
+    cfg: DatasetAuthoringConfig,
+    run_dir: Path,
+    *,
+    rows: list[dict] | None = None,
+) -> dict[str, Any]:
+    rows = load_rows(cfg) if rows is None else rows
     profile = profile_rows(rows, cfg)
     profile["materialized_path"] = str(cfg.materialized_path.relative_to(ROOT))
     profile["materialized_sha256"] = sha256_file(cfg.materialized_path)
@@ -970,8 +980,16 @@ def run_authoring(
     fixture_dir: Path | None = None,
     out_root: Path | None = None,
     plan_path: Path | None = None,
+    production_config: ProductionGenerationConfig | None = None,
+    exploratory: bool = False,
 ) -> dict[str, Any]:
-    """Run the full R&D authoring pipeline for one dataset."""
+    """Run the full R&D authoring pipeline for one dataset.
+
+    The EARLY BUDGET is resolved from a prepared source inventory BEFORE the
+    first LLM call (see :mod:`src.autonomous_qa.production.source_preparation`).
+    With no ``production_config`` (or ``exploratory=True``) an explicit
+    EXPLORATORY budget is recorded instead of fabricating a production target.
+    """
     cfg = DATASETS[dataset_id]
     run_id = run_id or new_run_id()
     root = Path(out_root) if out_root is not None else RUNS_ROOT
@@ -1012,7 +1030,27 @@ def run_authoring(
 
     docs = ingest_documentation(cfg, run_dir)
     rows = load_rows(cfg)
-    profile = profile_dataset(cfg, run_dir)
+    profile = profile_dataset(cfg, run_dir, rows=rows)
+
+    # SOURCE PREPARATION + EARLY BUDGET AUTHORIZATION — resolved BEFORE the first
+    # LLM call. No downstream stage may revise the total target.
+    source_split = cfg.allowed_splits[0] if cfg.allowed_splits else "train"
+    inventory = prepare_source_inventory(
+        dataset=cfg.dataset_id,
+        split=source_split,
+        path=cfg.materialized_path,
+        rows=rows,
+        identity_field=cfg.record_identity_field,
+        eligibility_fields=sorted(cfg.field_roles.keys()),
+    )
+    _write_json(run_dir / "preparation.json", inventory.to_dict())
+    early_budget = resolve_early_budget(
+        inventory=inventory,
+        config=production_config,
+        exploratory=exploratory or production_config is None,
+    )
+    _write_json(run_dir / "early_budget.json", early_budget.to_dict())
+
     card_manifest = {
         "declared_features": _declared_features(cfg.card_path),
         "declared_splits": _declared_splits(cfg.card_path),
@@ -1231,6 +1269,8 @@ def run_authoring(
         "source_revision": cfg.source_revision,
         "documentation_hashes": docs,
         "profile_sha256": profile["materialized_sha256"],
+        "source_inventory": inventory.to_dict(),
+        "early_budget": early_budget.to_dict(),
         "llm_calls_by_stage": call_counts,
         "total_real_llm_calls": sum(call_counts.values()),
         "llm_provenance": llm_provenance,
