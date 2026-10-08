@@ -18,6 +18,7 @@ from typing import Any, Literal
 import yaml
 
 from src.common.config import ROOT
+from src.autonomous_qa.production.audio_reference import opaque_audio_id
 from src.autonomous_qa.production.source_indexing import (
     build_row_identities,
     index_dataset_rows,
@@ -134,57 +135,132 @@ class ProductionQAError(RuntimeError):
         super().__init__(message)
 
 
+def _resolve_preflight_artifact_target(
+    config: ProductionGenerationConfig, dataset: str
+) -> str:
+    """Resolve the artifact target for one dataset.
+
+    ``config.language_preflight_artifact`` is an explicit override; but a single
+    shared config may point at another dataset's canonical preflight directory
+    (the shipped production config names vimd). In that case the override is
+    ignored for this dataset and the canonical per-dataset location is used, so
+    one dataset can never be authorized by another dataset's artifact.
+    """
+    configured = config.language_preflight_artifact
+    if configured:
+        norm = configured.replace("\\", "/")
+        names_other_dataset = any(
+            f"language_preflight/{other}/" in norm
+            for other in DATASET_SOURCES
+            if other != dataset
+        )
+        if not names_other_dataset:
+            return configured
+    return f"data/materialized/language_preflight/{dataset}/current"
+
+
+def _load_language_preflight_artifact(
+    config: ProductionGenerationConfig, dataset: str
+) -> dict[str, Any] | None:
+    target_artifact = _resolve_preflight_artifact_target(config, dataset)
+    artifact_path = Path(target_artifact)
+    if not artifact_path.is_absolute():
+        artifact_path = ROOT / artifact_path
+    if artifact_path.is_dir():
+        artifact_path = artifact_path / "audit.json"
+    if artifact_path.exists():
+        return json.loads(artifact_path.read_text(encoding="utf-8"))
+    return None
+
+
+def _authorize_dataset_preflight(
+    *,
+    dataset: str,
+    accepted: list[Any],
+    config: ProductionGenerationConfig,
+    enforce_extra_checks: bool,
+) -> dict[str, Any]:
+    """Deterministic authorization against the canonical preflight artifact.
+
+    Verifies preflight PASS, matching contract fingerprint (which pins the
+    language registry + accepted type set + renderer identity), and — when
+    ``enforce_extra_checks`` — dataset identity, zero blocking issues and the
+    accepted/registry identity recorded in the artifact.
+    """
+    from src.autonomous_qa.language.language_preflight import (
+        authorize_new_production,
+        compute_contract_fingerprint,
+    )
+
+    # ``run_preflight`` orders accepted types by dataset_type_id; mirror that
+    # ordering so the artifact fingerprint and the gate fingerprint agree.
+    accepted = sorted(accepted, key=lambda row: row.dataset_type_id)
+    fingerprint, fingerprint_inputs = compute_contract_fingerprint(
+        mode="dataset",
+        accepted_types=accepted,
+    )
+    artifact = _load_language_preflight_artifact(config, dataset)
+    decision = authorize_new_production(
+        require_language_preflight=True,
+        current_fingerprint=fingerprint,
+        pass_artifact=artifact,
+    )
+    if decision["allowed"] and enforce_extra_checks:
+        if artifact.get("dataset") != dataset:
+            decision = {"allowed": False, "status": "PREFLIGHT_DATASET_MISMATCH"}
+        elif int(artifact.get("blocking_issue_count") or 0) != 0:
+            decision = {"allowed": False, "status": "PREFLIGHT_BLOCKING_ISSUES"}
+        elif artifact.get("language_registry_hash") != (
+            fingerprint_inputs["resources"]["language_registry_hash"]
+        ):
+            decision = {"allowed": False, "status": "PREFLIGHT_REGISTRY_MISMATCH"}
+        elif int(artifact.get("accepted_type_count") or 0) != len(accepted):
+            decision = {"allowed": False, "status": "PREFLIGHT_ACCEPTED_SET_MISMATCH"}
+    decision.update(
+        {
+            "contract_fingerprint": fingerprint,
+            "language_registry_sha256": sha256_file(CANONICAL_REGISTRY_PATH),
+            "renderer_contract_sha256": sha256_file(
+                LANGUAGE_ROOT / "renderer_contract.json"
+            ),
+        }
+    )
+    if not decision["allowed"]:
+        raise ProductionQAError(
+            decision["status"], config.language_preflight_artifact or ""
+        )
+    return decision
+
+
 def enforce_language_preflight_gate(
     *, dataset: str, config: ProductionGenerationConfig
 ) -> dict[str, Any]:
     """Authorize a new plan only when the canonical preflight artifact matches."""
     from src.autonomous_qa.language.language_preflight import (
-        authorize_new_production,
-        compute_contract_fingerprint,
+        get_dataset_accepted_types,
         vimd_accepted_types,
     )
 
     if dataset == "vimd":
-        accepted = vimd_accepted_types()
-        fingerprint, _ = compute_contract_fingerprint(
-            mode="dataset",
-            accepted_types=accepted,
+        # ViMD gate behavior is intentionally preserved.
+        return _authorize_dataset_preflight(
+            dataset="vimd",
+            accepted=vimd_accepted_types(),
+            config=config,
+            enforce_extra_checks=False,
         )
-        artifact: dict[str, Any] | None = None
-        target_artifact = (
-            config.language_preflight_artifact
-            or f"data/materialized/language_preflight/{dataset}/current"
+    if dataset == "vimedcss":
+        # Real deterministic authorization against the canonical 3-task set.
+        return _authorize_dataset_preflight(
+            dataset="vimedcss",
+            accepted=get_dataset_accepted_types("vimedcss"),
+            config=config,
+            enforce_extra_checks=True,
         )
-        artifact_path = Path(target_artifact)
-        if not artifact_path.is_absolute():
-            artifact_path = ROOT / artifact_path
-        if artifact_path.is_dir():
-            artifact_path = artifact_path / "audit.json"
-        if artifact_path.exists():
-            artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
-        decision = authorize_new_production(
-            require_language_preflight=True,
-            current_fingerprint=fingerprint,
-            pass_artifact=artifact,
-        )
-        decision.update(
-            {
-                "contract_fingerprint": fingerprint,
-                "language_registry_sha256": sha256_file(CANONICAL_REGISTRY_PATH),
-                "renderer_contract_sha256": sha256_file(
-                    LANGUAGE_ROOT / "renderer_contract.json"
-                ),
-            }
-        )
-        if not decision["allowed"]:
-            raise ProductionQAError(
-                decision["status"], config.language_preflight_artifact or ""
-            )
-        return decision
-    elif dataset in ("vimedcss", "vietmdd"):
+    if dataset == "vietmdd":
+        # VietMDD behavior unchanged in this task.
         return {"allowed": True, "status": "PREFLIGHT_PASS"}
-    else:
-        raise ProductionQAError("DATASET_UNSUPPORTED", dataset)
+    raise ProductionQAError("DATASET_UNSUPPORTED", dataset)
 
 
 def verify_canonical_resources(dataset: str = "vimd") -> dict[str, Any]:
@@ -276,13 +352,6 @@ def load_flat_metadata(path: Path) -> list[dict[str, Any]]:
 
 
 
-
-
-def opaque_audio_id(dataset: str, revision: str, source_row_id: str) -> str:
-    digest = hashlib.sha256(
-        f"{dataset}|{revision}|{source_row_id}".encode()
-    ).hexdigest()
-    return f"audio_{digest[:20]}"
 
 
 def semantic_instance_id(payload: dict[str, Any]) -> str:
@@ -477,7 +546,45 @@ def _sampling_settings(
         else top_reuse,
         max_source_row_reuse_per_type=config.sampling.max_source_row_reuse_per_type,
         max_sampling_attempts=config.sampling.max_sampling_attempts,
+        equality_strategy=config.sampling.equality_strategy,
+        equality_candidate_pool_same=config.sampling.equality_candidate_pool_same,
+        equality_candidate_pool_different=config.sampling.equality_candidate_pool_different,
+        equality_positive_per_anchor=config.sampling.equality_positive_per_anchor,
+        equality_negative_per_anchor=config.sampling.equality_negative_per_anchor,
+        equality_pair_uniqueness=config.sampling.equality_pair_uniqueness,
     )
+
+
+def derive_full_split_budget(
+    config: ProductionGenerationConfig,
+    contracts: list[TypeContract],
+    capacities: dict[str, dict[str, Any]],
+) -> dict[str, int] | None:
+    """Derive a full-split budget from eligible anchors (generic).
+
+    DIRECT -> one QA per eligible row; EQUALITY anchor-neighborhood ->
+    eligible_anchors * (positive_per_anchor + negative_per_anchor). Returns
+    None for any operator/strategy combination that has no defined full-split
+    budget, so callers can fail closed.
+    """
+    pos = config.sampling.equality_positive_per_anchor
+    neg = config.sampling.equality_negative_per_anchor
+    budgets: dict[str, int] = {}
+    for contract in contracts:
+        capacity = capacities.get(contract.type_id)
+        if capacity is None:
+            return None
+        anchors = int(capacity.get("evidence_summary", {}).get("valid_rows", 0))
+        if contract.operator == "DIRECT":
+            budgets[contract.type_id] = anchors
+        elif (
+            contract.operator == "EQUALITY"
+            and config.sampling.equality_strategy == "anchor_neighborhood"
+        ):
+            budgets[contract.type_id] = anchors * (pos + neg)
+        else:
+            return None
+    return budgets
 
 
 def build_generation_plan(
@@ -491,6 +598,7 @@ def build_generation_plan(
     budget_by_type: dict[str, int],
     dataset: str,
     dataset_revision: str,
+    split: str = "train",
 ) -> dict[str, Any]:
     settings = _sampling_settings(config)
     reuse = ReuseTracker(
@@ -536,7 +644,7 @@ def build_generation_plan(
                     "operator": contract.operator,
                     "semantic_class": spec.semantic_class,
                     "dataset": dataset,
-                    "split": "train",
+                    "split": split,
                     "dataset_revision": dataset_revision,
                     "source_row_ids": list(draft["source_row_ids"]),
                     "target": draft.get("target"),
@@ -616,6 +724,7 @@ def realize_qa(
     seed: int,
     metadata_sha256: str,
     type_registry_hash: str,
+    split: str = "train",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     entries = {entry.language_entry_id: entry for entry in registry.entries}
     config_hash = canonical_hash(config.model_dump())
@@ -651,7 +760,7 @@ def realize_qa(
             "qa_id": qa_id,
             "semantic_instance_id": record["semantic_instance_id"],
             "dataset": record["dataset"],
-            "split": "train",
+            "split": record.get("split", split),
             "dataset_revision": record["dataset_revision"],
             "type_id": record["type_id"],
             "operator": record["operator"],
@@ -713,7 +822,7 @@ def audio_dependency_manifest(
     return {
         "dataset": source["dataset"],
         "dataset_revision": source["revision"],
-        "split": "train",
+        "split": source.get("split", "train"),
         "unique_audio": len(ordered),
         "total_references": sum(item["required_by_count"] for item in ordered),
         "audio": ordered,
@@ -758,6 +867,40 @@ def _plan_fingerprint(records: list[dict[str, Any]]) -> str:
     ).hexdigest()
 
 
+def dataset_allowed_splits(dataset: str) -> tuple[str, ...]:
+    """Splits an explicit DatasetSpec authorizes for planning (allowed minus forbidden)."""
+    from src.autonomous_qa.compiler.canonical_resources import get_dataset_spec
+
+    spec = get_dataset_spec(dataset)
+    forbidden = set(spec.split_policy.get("forbidden_splits", []))
+    return tuple(sorted(set(spec.allowed_splits) - forbidden))
+
+
+def assert_split_authorized(dataset: str, split: str) -> None:
+    """Fail closed unless the split is explicitly authorized by the DatasetSpec."""
+    from src.autonomous_qa.compiler.canonical_resources import get_dataset_spec
+
+    spec = get_dataset_spec(dataset)
+    forbidden = set(spec.split_policy.get("forbidden_splits", []))
+    if split in forbidden:
+        raise ProductionQAError("SPLIT_FORBIDDEN", f"{dataset}:{split}")
+    if split not in set(spec.allowed_splits):
+        raise ProductionQAError("SPLIT_NOT_AUTHORIZED", f"{dataset}:{split}")
+
+
+def split_metadata_path(source: dict[str, Any], split: str) -> Path:
+    """Resolve a split's metadata path: registered mapping > convention > default."""
+    registered = source.get("split_paths") or {}
+    if split in registered:
+        return Path(registered[split])
+    if split == "train":
+        return Path(source["metadata_path"])
+    candidate = Path(source["metadata_path"]).parent / f"{split}.jsonl"
+    if candidate.exists():
+        return candidate
+    raise ProductionQAError("SPLIT_SOURCE_MISSING", f"{split}:{candidate}")
+
+
 def run_production_qa(
     *,
     dataset: str,
@@ -768,6 +911,7 @@ def run_production_qa(
     debug_sample: int | None = None,
     metadata_path: Path | None = None,
     expected_rows: int | None = None,
+    split: str | None = None,
 ) -> dict[str, Any]:
     started = datetime.now(timezone.utc)
     run_id = run_id or started.strftime("%Y%m%dT%H%M%SZ")
@@ -786,17 +930,30 @@ def run_production_qa(
     source["dataset"] = dataset
     registry_path = CANONICAL_REGISTRY_PATH
     source["language_registry"] = registry_path
-    if metadata_path is not None:
-        source["metadata_path"] = Path(metadata_path)
+
+    # Split selection: explicit arg > config > default. Authorized only.
+    explicit_metadata = metadata_path is not None
+    split = split or getattr(config, "split", None) or "train"
+    assert_split_authorized(dataset, split)
+    if not explicit_metadata:
+        metadata_path = split_metadata_path(source, split)
+    source["split"] = split
+    source["metadata_path"] = Path(metadata_path)
+    if explicit_metadata:
         source["expected_sha256"] = None
     if expected_rows is not None:
         source["expected_rows"] = expected_rows
+    elif split != "train":
+        source["expected_rows"] = None
+        source["expected_sha256"] = None
 
     preflight_gate = enforce_language_preflight_gate(dataset=dataset, config=config)
 
     rows = load_flat_metadata(source["metadata_path"])
     metadata_sha256 = sha256_file(source["metadata_path"])
-    row_count_ok = len(rows) == source["expected_rows"]
+    row_count_ok = (
+        source["expected_rows"] is None or len(rows) == source["expected_rows"]
+    )
     sha_ok = (
         source["expected_sha256"] is None
         or metadata_sha256 == source["expected_sha256"]
@@ -860,7 +1017,7 @@ def run_production_qa(
         {
             "dataset": dataset,
             "dataset_revision": source["revision"],
-            "split": "train",
+            "split": split,
             "metadata_source": str(source["metadata_path"]),
             "metadata_rows": len(rows),
             "metadata_sha256": metadata_sha256,
@@ -956,8 +1113,17 @@ def run_production_qa(
         },
     )
 
+    budget_config = config
+    if config.coverage_mode == "full_split":
+        derived = derive_full_split_budget(config, contracts, capacities)
+        if derived is None:
+            raise ProductionQAError(
+                "FULL_SPLIT_COVERAGE_UNSUPPORTED",
+                ",".join(sorted(c.type_id for c in contracts)),
+            )
+        budget_config = config.model_copy(update={"per_type_budget": derived})
     budget = resolve_budget(
-        config,
+        budget_config,
         contracts,
         capacities,
         debug_cap=debug_sample if mode == "debug_sample" else None,
@@ -1017,6 +1183,7 @@ def run_production_qa(
                 budget_by_type=budget["per_type"],
                 dataset=dataset,
                 dataset_revision=source["revision"],
+                split=split,
             )
         except (BudgetShortfallError, ProductionQAError) as exc:
             blocked_reasons.append(f"PLAN_FAILED:{exc}")
@@ -1040,6 +1207,7 @@ def run_production_qa(
             budget_by_type=budget["per_type"],
             dataset=dataset,
             dataset_revision=source["revision"],
+            split=split,
         )
         determinism = {
             "plan_fingerprint": plan_result["fingerprint"],
@@ -1085,6 +1253,7 @@ def run_production_qa(
                 seed=int(config.seed or 0),
                 metadata_sha256=metadata_sha256,
                 type_registry_hash=canonical_checks["type_registry"]["file_sha256"],
+                split=split,
             )
             write_jsonl(run_dir / "qa_internal.jsonl", internal)
             write_jsonl(run_dir / "qa_model_facing.jsonl", model_records)

@@ -8,15 +8,14 @@
     "revision_identity": "b6959a18a08739464733930a872e7125c03e6558"
   },
   "allowed_splits": [
-    "train"
+    "train",
+    "validation",
+    "test",
+    "hard"
   ],
   "split_policy": {
     "production_split": "train",
-    "forbidden_splits": [
-      "validation",
-      "test",
-      "hard"
-    ]
+    "forbidden_splits": []
   },
   "record_identity": {
     "field": "segment_id",

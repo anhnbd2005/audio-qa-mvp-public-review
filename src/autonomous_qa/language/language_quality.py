@@ -232,6 +232,13 @@ class SamplingPolicyConfig(BaseModel):
     prefer_distinct_speaker: bool = True
     hidden_identifier_field: str | None = "speakerID"
     max_sampling_attempts: int = Field(default=64, ge=1)
+    # Opt-in EQUALITY coverage strategy. Default keeps historical behaviour.
+    equality_strategy: Literal["default", "anchor_neighborhood"] = "default"
+    equality_candidate_pool_same: int = Field(default=8, ge=1)
+    equality_candidate_pool_different: int = Field(default=8, ge=1)
+    equality_positive_per_anchor: int = Field(default=2, ge=0)
+    equality_negative_per_anchor: int = Field(default=2, ge=0)
+    equality_pair_uniqueness: Literal["unordered", "ordered"] = "unordered"
 
 
 class BooleanConfig(BaseModel):
@@ -269,11 +276,34 @@ class AudioConfig(BaseModel):
     local_root: str | None = None
 
 
+class AudioExportConfig(BaseModel):
+    """Portable audio-reference export policy (release-time, generation-independent).
+
+    Default is the historical opaque deterministic hash id, so datasets that do
+    not opt in keep their existing model-facing behaviour. A dataset whose source
+    metadata carries an authoritative audio filename can switch to portable
+    source filenames resolved through the stored source-row identity link.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    reference_mode: Literal["opaque_id", "source_filename"] = "opaque_id"
+    identity_field: str | None = None
+    source_audio_field: str | None = None
+    require_unique_identity: bool = True
+    preserve_audio_order: bool = True
+    fail_on_unresolved: bool = True
+    require_identity_matches_basename: bool = False
+
+
 class ProductionGenerationConfig(BaseModel):
     """Schema only; release-specific budgets remain intentionally unset."""
 
     model_config = ConfigDict(extra="forbid")
     seed: int | None = None
+    split: str | None = None
+    # "explicit" uses per_type_budget/total_target_qa; "full_split" derives the
+    # budget from the actual eligible-anchor count of the selected split.
+    coverage_mode: Literal["explicit", "full_split"] = "explicit"
     total_target_qa: int | None = Field(default=None, ge=1)
     per_type_budget: dict[str, int] | None = None
     per_language_pattern_budget: dict[str, int] | None = None
@@ -292,6 +322,7 @@ class ProductionGenerationConfig(BaseModel):
     text_negative: TextNegativeConfig = Field(default_factory=TextNegativeConfig)
     language: LanguageConfig = Field(default_factory=LanguageConfig)
     audio: AudioConfig = Field(default_factory=AudioConfig)
+    audio_export: AudioExportConfig = Field(default_factory=AudioExportConfig)
 
     @model_validator(mode="after")
     def budget_policy_is_supported(self) -> ProductionGenerationConfig:

@@ -1,0 +1,41 @@
+# ViMedCSS V2 FINAL production budget + anchor-neighborhood pairwise policy.
+# Agent did NOT run this. A human operator runs run_vimedcss_v2_full.ps1.
+seed: 42
+
+per_type_budget:
+  vimedcss_topic_classification: 11832
+  vimedcss_cs_terms_count: 11832
+  vimedcss_pairwise_topic_same: 47328
+
+strict_budget: true
+allocation_policy: equal_by_type
+language_preflight_artifact: data/materialized/language_preflight/vimedcss/current
+
+boolean:
+  positive_ratio: 0.5
+
+sampling:
+  value_sampling: uniform_over_values
+  prefer_distinct_speaker: true
+  hidden_identifier_field: speakerID
+  max_sampling_attempts: 64
+  # --- opt-in EQUALITY anchor-neighborhood strategy ---
+  equality_strategy: anchor_neighborhood
+  equality_candidate_pool_same: 8
+  equality_candidate_pool_different: 8
+  equality_positive_per_anchor: 2
+  equality_negative_per_anchor: 2
+
+selection:
+  randomized_position: true
+
+text_negative:
+  length_bucket_match: true
+
+language:
+  variants_per_semantic_instance: 1
+  selection: deterministic_sha256
+
+audio:
+  materialize: false
+  local_root: null

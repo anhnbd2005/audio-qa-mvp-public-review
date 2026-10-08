@@ -138,6 +138,10 @@ class TrainIndex:
         }
 
 
+EqualityStrategy = Literal["default", "anchor_neighborhood"]
+PairUniqueness = Literal["unordered", "ordered"]
+
+
 @dataclass
 class SamplingSettings:
     value_sampling: ValueSampling = "uniform_over_values"
@@ -149,6 +153,13 @@ class SamplingSettings:
     max_source_row_reuse: int | None = None
     max_source_row_reuse_per_type: int | None = None
     max_sampling_attempts: int = 64
+    # Opt-in EQUALITY strategy (default behaviour unchanged).
+    equality_strategy: EqualityStrategy = "default"
+    equality_candidate_pool_same: int = 8
+    equality_candidate_pool_different: int = 8
+    equality_positive_per_anchor: int = 2
+    equality_negative_per_anchor: int = 2
+    equality_pair_uniqueness: PairUniqueness = "unordered"
 
 
 @dataclass
@@ -501,12 +512,177 @@ class SemanticSampler:
         return drafts
 
     def _equality(self, total: int) -> list[dict[str, Any]]:
+        if self.settings.equality_strategy == "anchor_neighborhood":
+            return self._equality_anchor_neighborhood(total)
         positive_total = self._positive_total(total)
         negative_total = total - positive_total
         drafts: list[dict[str, Any]] = []
         drafts.extend(self._equality_positive(positive_total))
         drafts.extend(self._equality_negative(negative_total))
         return drafts
+
+    # --- opt-in anchor-neighborhood EQUALITY strategy --------------------
+    def _rank_key(self, *parts: str) -> str:
+        return hashlib.sha256(
+            ("|".join([str(self.seed), self.contract.type_id, *parts])).encode("utf-8")
+        ).hexdigest()
+
+    def _anchor_pair_draft(
+        self, anchor: str, partner: str, is_same: bool
+    ) -> dict[str, Any]:
+        # Delivery order is ALWAYS anchor first (A then B).
+        return {
+            "source_row_ids": [anchor, partner],
+            "target": None,
+            "target_display": None,
+            "gold_value": bool(is_same),
+            "flags": {"pair_kind": "SAME_TOPIC" if is_same else "DIFFERENT_TOPIC"},
+        }
+
+    def _equality_anchor_neighborhood(self, total: int) -> list[dict[str, Any]]:
+        """AF3-inspired bounded neighborhood strategy.
+
+        Every eligible row is used exactly once as an anchor and receives
+        ``positive_per_anchor`` SAME_TOPIC and ``negative_per_anchor``
+        DIFFERENT_TOPIC comparisons, selected from a bounded, deterministic
+        SHA256-ranked neighborhood. Unordered pairs are globally unique; the
+        anchor always precedes its partner in delivery order.
+        """
+        field = self.field
+        pos_needed = self.settings.equality_positive_per_anchor
+        neg_needed = self.settings.equality_negative_per_anchor
+        anchors = sorted(self.index.valid_row_ids[field])
+        expected = len(anchors) * (pos_needed + neg_needed)
+        if total != expected:
+            raise BudgetShortfallError(
+                {
+                    "code": "BUDGET_SHORTFALL",
+                    "type_id": self.contract.type_id,
+                    "kind": "ANCHOR_NEIGHBORHOOD_TOTAL_MISMATCH",
+                    "requested": total,
+                    "feasible": expected,
+                    "shortfall": total - expected,
+                }
+            )
+        if not anchors:
+            return []
+
+        norm_by_row = {row_id: self._row_norm(row_id) for row_id in anchors}
+        group_order: dict[str, list[str]] = {
+            norm: sorted(members, key=lambda r: self._rank_key("order", r))
+            for norm, members in self.index.rows_by_value[field].items()
+        }
+        position: dict[str, int] = {}
+        for members in group_order.values():
+            for index, row_id in enumerate(members):
+                position[row_id] = index
+        global_order = sorted(anchors, key=lambda r: self._rank_key("order", r))
+
+        window_same = max(self.settings.equality_candidate_pool_same, pos_needed)
+        window_diff = max(self.settings.equality_candidate_pool_different, neg_needed)
+
+        partner_reuse: Counter = Counter()
+        drafts: list[dict[str, Any]] = []
+
+        for anchor in global_order:
+            norm = norm_by_row[anchor]
+            members = group_order.get(norm, [])
+            group_size = len(members)
+            start = (position[anchor] + 1) % group_size if group_size else 0
+
+            # SAME_TOPIC neighborhood (bounded, expandable fallback).
+            chosen_same: list[str] = []
+            window = min(window_same, max(0, group_size - 1))
+            while True:
+                cands = [
+                    members[(start + k) % group_size]
+                    for k in range(window)
+                ]
+                chosen_same = self._select_partners(
+                    anchor, cands, pos_needed, "same", partner_reuse
+                )
+                if len(chosen_same) >= pos_needed or window >= group_size - 1:
+                    break
+                window = min(group_size - 1, max(window * 2, window + 1))
+            if len(chosen_same) < pos_needed:
+                raise BudgetShortfallError(
+                    {
+                        "code": "BUDGET_SHORTFALL",
+                        "type_id": self.contract.type_id,
+                        "kind": "ANCHOR_NEIGHBORHOOD_SAME",
+                        "anchor": anchor,
+                        "requested": pos_needed,
+                        "feasible": len(chosen_same),
+                    }
+                )
+
+            # DIFFERENT_TOPIC neighborhood (bounded, expandable fallback).
+            diff_order = [
+                row_id for row_id in global_order if norm_by_row[row_id] != norm
+            ]
+            chosen_diff: list[str] = []
+            window = min(window_diff, len(diff_order))
+            while True:
+                cands = diff_order[:window]
+                chosen_diff = self._select_partners(
+                    anchor, cands, neg_needed, "different", partner_reuse
+                )
+                if len(chosen_diff) >= neg_needed or window >= len(diff_order):
+                    break
+                window = min(len(diff_order), max(window * 2, window + 1))
+            if len(chosen_diff) < neg_needed:
+                raise BudgetShortfallError(
+                    {
+                        "code": "BUDGET_SHORTFALL",
+                        "type_id": self.contract.type_id,
+                        "kind": "ANCHOR_NEIGHBORHOOD_DIFFERENT",
+                        "anchor": anchor,
+                        "requested": neg_needed,
+                        "feasible": len(chosen_diff),
+                    }
+                )
+
+            for partner in chosen_same:
+                self.seen.add(self._pair_key(anchor, partner))
+                partner_reuse[partner] += 1
+                drafts.append(self._anchor_pair_draft(anchor, partner, True))
+            for partner in chosen_diff:
+                self.seen.add(self._pair_key(anchor, partner))
+                partner_reuse[partner] += 1
+                drafts.append(self._anchor_pair_draft(anchor, partner, False))
+
+        self.stats["anchor_neighborhood_same"] = pos_needed * len(global_order)
+        self.stats["anchor_neighborhood_different"] = neg_needed * len(global_order)
+        return drafts
+
+    def _pair_key(self, anchor: str, partner: str) -> tuple[str, str]:
+        if self.settings.equality_pair_uniqueness == "unordered":
+            return tuple(sorted((anchor, partner)))
+        return (anchor, partner)
+
+    def _select_partners(
+        self,
+        anchor: str,
+        candidates: list[str],
+        needed: int,
+        tag: str,
+        partner_reuse: Counter,
+    ) -> list[str]:
+        """Pure selection: prefer lower partner reuse, tie-break by SHA256 rank."""
+        rank = {row_id: self._rank_key(tag, anchor, row_id) for row_id in candidates}
+        ordered = sorted(
+            candidates, key=lambda row_id: (partner_reuse[row_id], rank[row_id], row_id)
+        )
+        chosen: list[str] = []
+        for row_id in ordered:
+            if len(chosen) >= needed:
+                break
+            if row_id == anchor:
+                continue
+            if self._pair_key(anchor, row_id) in self.seen:
+                continue
+            chosen.append(row_id)
+        return chosen
 
     def _equality_positive(self, total: int) -> list[dict[str, Any]]:
         values = [

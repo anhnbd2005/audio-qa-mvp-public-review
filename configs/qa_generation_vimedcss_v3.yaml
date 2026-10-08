@@ -1,0 +1,56 @@
+# ViMedCSS V3 — generic 4 SAME + 4 DIFFERENT pairwise policy, split-aware.
+# All four original splits are authorized for QA generation (training production
+# remains restricted to production_split=train). One config; the split is selected
+# on the CLI/runner. Budgets are DERIVED from the split's eligible anchors
+# (coverage_mode: full_split): DIRECT = N, EQUALITY = N*(4+4) = 8N, total 10N.
+# The human operator runs production; this agent only runs PlanOnly.
+seed: 42
+split: train
+coverage_mode: full_split
+
+strict_budget: true
+allocation_policy: equal_by_type
+language_preflight_artifact: data/materialized/language_preflight/vimedcss/current
+
+boolean:
+  positive_ratio: 0.5
+
+sampling:
+  value_sampling: uniform_over_values
+  prefer_distinct_speaker: true
+  hidden_identifier_field: speakerID
+  max_sampling_attempts: 64
+  # Generic anchor-neighborhood equality strategy: 4 positive + 4 negative.
+  equality_strategy: anchor_neighborhood
+  equality_candidate_pool_same: 8
+  equality_candidate_pool_different: 8
+  equality_positive_per_anchor: 4
+  equality_negative_per_anchor: 4
+  equality_pair_uniqueness: unordered
+
+selection:
+  randomized_position: true
+
+text_negative:
+  length_bucket_match: true
+
+language:
+  variants_per_semantic_instance: 1
+  selection: deterministic_sha256
+
+audio:
+  materialize: false
+  local_root: null
+
+# Portable audio-reference export policy (release-time stage; canonical QA
+# generation still emits opaque ids internally). Resolution is authoritative:
+# each opaque audio id is linked to its source row via the stored identity and
+# the portable file gets the original WAV basename only (never a server path).
+audio_export:
+  reference_mode: source_filename
+  identity_field: segment_id
+  source_audio_field: audio
+  require_unique_identity: true
+  preserve_audio_order: true
+  fail_on_unresolved: true
+  require_identity_matches_basename: true

@@ -235,7 +235,11 @@ def test_vimedcss_canonical_resources_promoted():
     catalog = load_dataset_semantic_catalog("vimedcss")
     contract = get_production_contract("vimedcss")
     assert set(contract.active_semantic_types) == {t.type_id for t in catalog.tasks}
-    assert get_dataset_spec("vimedcss").allowed_splits == ("train",)
+    # V3 policy: all four original splits are authorized for QA generation;
+    # training production remains restricted to the production split.
+    spec = get_dataset_spec("vimedcss")
+    assert spec.allowed_splits == ("train", "validation", "test", "hard")
+    assert spec.split_policy.get("production_split") == "train"
 
 
 def test_existing_canonical_unchanged():

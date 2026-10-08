@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "dataset_id": "vimedcss",
+  "note": "ViMedCSS final delivery/presentation policy. Downstream of semantic promotion: it selects approved question wording and defines how the two-audio pairwise task is packaged as ONE physical A+BEEP+B WAV. It does NOT change semantics, gold, arity or the global language registry.",
+  "question_variants": {
+    "vimedcss_topic_classification": [
+      "Chủ đề y khoa của đoạn âm thanh là gì?",
+      "Hãy xác định chủ đề y khoa của đoạn âm thanh.",
+      "Dựa vào nội dung được nói, đoạn âm thanh thuộc chủ đề y khoa nào?"
+    ],
+    "vimedcss_cs_terms_count": [
+      "Có bao nhiêu thuật ngữ code-switching xuất hiện trong đoạn âm thanh?",
+      "Số thuật ngữ code-switching trong đoạn âm thanh là bao nhiêu?",
+      "Hãy xác định số thuật ngữ code-switching được sử dụng trong đoạn âm thanh."
+    ],
+    "vimedcss_pairwise_topic_same": [
+      "Nghe hai đoạn âm thanh A và B được ngăn cách bởi một tiếng bíp. Hai đoạn có cùng chủ đề y khoa không?",
+      "Hai đoạn âm thanh A và B được phân cách bằng một tiếng bíp. Hãy xác định chúng có cùng chủ đề y khoa hay không.",
+      "Nghe đoạn A và đoạn B ở hai phía của tiếng bíp. Hai đoạn có thuộc cùng một chủ đề y khoa không?"
+    ]
+  },
+  "pair_audio_policy": {
+    "task_id": "vimedcss_pairwise_topic_same",
+    "semantic_audio_arity": 2,
+    "delivery_audio_arity": 1,
+    "layout": "A_BEEP_B",
+    "separator_recipe": "resources/semantics/p1_audio_recipe.json"
+  }
+}

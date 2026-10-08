@@ -521,7 +521,7 @@ def test_vimedcss_rendered_questions_are_natural(tmp_path: Path):
     matrix = bundle.candidate_language_preflight["render_matrix"]
     questions = {row["rendered_question"] for row in matrix}
     assert "Chủ đề y khoa của đoạn âm thanh là gì?" in questions
-    assert "Số từ chuyển ngữ trong đoạn âm thanh là bao nhiêu?" in questions
+    assert "Số thuật ngữ code-switching trong đoạn âm thanh là bao nhiêu?" in questions
     assert any("Hai đoạn âm thanh" in q and "chủ đề y khoa" in q for q in questions)
     for q in questions:
         assert q.count("đoạn âm thanh") <= 1, q

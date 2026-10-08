@@ -18,8 +18,8 @@
       "semantic_class": "numeric_attribute",
       "entity_scope": "utterance",
       "entity_phrase": "đoạn âm thanh",
-      "attribute_phrase": "số từ chuyển ngữ",
-      "value_phrase": "số từ",
+      "attribute_phrase": "số thuật ngữ code-switching",
+      "value_phrase": "số thuật ngữ",
       "unit": null,
       "value_policy": {"normalization": "identity", "match_policy": "exact"},
       "source": "migration_sidecar"

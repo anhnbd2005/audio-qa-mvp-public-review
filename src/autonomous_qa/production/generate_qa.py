@@ -56,6 +56,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--output-root", type=Path, default=None)
     parser.add_argument("--run-id", default=None)
+    parser.add_argument(
+        "--split",
+        default=None,
+        help="Authorized dataset split (default: config split or 'train')",
+    )
     args = parser.parse_args(argv)
 
     if args.debug_sample is not None:
@@ -75,6 +80,7 @@ def main(argv: list[str] | None = None) -> int:
             output_root=args.output_root,
             run_id=args.run_id,
             debug_sample=args.debug_sample,
+            split=args.split,
         )
     except ProductionQAError as exc:
         print(f"{exc.code}: {exc}", file=sys.stderr)

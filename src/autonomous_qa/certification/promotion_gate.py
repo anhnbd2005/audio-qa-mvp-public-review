@@ -8,7 +8,10 @@ deterministic, atomic, and refuses on invalid evidence.
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -17,11 +20,17 @@ from src.autonomous_qa.compiler.canonical_resources import (
     ProductionContract,
     PromotionManifest,
 )
-from src.common.config import ROOT
-from src.autonomous_qa.language.language_quality import load_language_registry
+from src.autonomous_qa.compiler.semantic_comparators import (
+    comparator_set_hash,
+    load_comparator_registry,
+)
+from src.autonomous_qa.compiler.semantic_task import (
+    SemanticCatalog,
+    load_semantic_catalog,
+)
 from src.autonomous_qa.language.language_preflight import REGISTRY_RESOURCE
-from src.autonomous_qa.compiler.semantic_comparators import comparator_set_hash, load_comparator_registry
-from src.autonomous_qa.compiler.semantic_task import SemanticCatalog, load_semantic_catalog
+from src.autonomous_qa.language.language_quality import load_language_registry
+from src.common.config import ROOT
 
 RESOURCE_ROOT = ROOT / "resources"
 PRODUCTION_DIR = RESOURCE_ROOT / "production"
@@ -259,7 +268,9 @@ def migration_evidence_from_final(dataset_id: str) -> dict[str, Any]:
     does NOT rerun R&D or load timestamped discovery outputs.
     """
     if dataset_id == "vietmdd":
-        from src.autonomous_qa.datasets.vietmdd import get_active_vietmdd_release_manifest
+        from src.autonomous_qa.datasets.vietmdd import (
+            get_active_vietmdd_release_manifest,
+        )
         release = get_active_vietmdd_release_manifest()
         return {
             "dataset_profile": {"status": "N/A", "note": "existing canonical final"},
@@ -308,6 +319,283 @@ def migration_evidence_from_final(dataset_id: str) -> dict[str, Any]:
                 "status": "N/A",
                 "note": "existing canonical final",
             },
-            "final_plan": {"plan": "vimd_plan_k22000"},
+            "final_plan": {"plan": "vimd_k22000"},
         }
     raise PromotionError("UNKNOWN_DATASET", dataset_id)
+
+
+# ---------------------------------------------------------------------------
+# DatasetSpec-hash reconciliation (governed rebind)
+# ---------------------------------------------------------------------------
+#
+# A DatasetSpec may legitimately change in policy-only ways (for example the
+# authorized four-split QA-generation policy) that do NOT change semantics,
+# language templates or gold. Such a change still moves ``logical_hash()`` and
+# therefore invalidates ``ProductionContract.dataset_spec_hash`` and the
+# ``PromotionManifest`` binding. ``reconcile_dataset_spec_hash`` rebinds ONLY
+# those spec-derived fields inside the promotion-gate transaction, atomically,
+# with allowed-change enforcement and cross-resource re-validation. Semantic
+# catalog, language registry, active types and promotion evidence are preserved
+# byte-for-byte (never fabricated).
+
+_SPEC_REBIND_CONTRACT_ALLOWED = frozenset(
+    {"dataset_spec_hash", "production_planner_policy", "promotion_fingerprint"}
+)
+_SPEC_REBIND_MANIFEST_ALLOWED = frozenset(
+    {
+        "dataset_spec_hash",
+        "allowed_splits",
+        "production_contract_hash",
+        "promotion_fingerprint",
+    }
+)
+
+
+def _default_atomic_replace(src: str, dst: str) -> None:
+    os.replace(src, dst)
+
+
+def _write_canonical_json(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _spec_rebind_registry_entry(resource_root: Path, dataset_id: str) -> dict[str, str]:
+    registry_path = resource_root / "registry" / "datasets.json"
+    if not registry_path.exists():
+        raise PromotionError("CANONICAL_DATASET_REGISTRY_MISSING", str(registry_path))
+    entries = _read_json(registry_path)["datasets"]
+    if dataset_id not in entries:
+        raise PromotionError("UNKNOWN_DATASET", dataset_id)
+    return entries[dataset_id]
+
+
+def _spec_rebind_paths(
+    resource_root: Path, dataset_id: str
+) -> dict[str, Path]:
+    entry = _spec_rebind_registry_entry(resource_root, dataset_id)
+    for key in (
+        "dataset_spec",
+        "semantic_catalog",
+        "production_contract",
+        "promotion_manifest",
+    ):
+        if not entry.get(key):
+            raise PromotionError("CANONICAL_REGISTRY_ENTRY_INCOMPLETE", f"{dataset_id}:{key}")
+    return {
+        key: resource_root.parent / entry[key]
+        for key in (
+            "dataset_spec",
+            "semantic_catalog",
+            "production_contract",
+            "promotion_manifest",
+        )
+    }
+
+
+def plan_dataset_spec_reconciliation(
+    dataset_id: str,
+    *,
+    resource_root: Path = RESOURCE_ROOT,
+) -> dict[str, Any]:
+    """Build the rebind payloads for a policy-only DatasetSpec change (no writes)."""
+    paths = _spec_rebind_paths(resource_root, dataset_id)
+    spec = DatasetSpec.model_validate(_read_json(paths["dataset_spec"]))
+    contract = ProductionContract.model_validate(_read_json(paths["production_contract"]))
+    manifest = PromotionManifest.model_validate(_read_json(paths["promotion_manifest"]))
+    catalog = load_semantic_catalog(paths["semantic_catalog"])
+    registry = load_language_registry(resource_root / "language" / "production_registry.json")
+
+    catalog_hash = catalog.logical_hash()
+    catalog_types = tuple(sorted(t.type_id for t in catalog.tasks))
+    if contract.semantic_catalog_hash != catalog_hash or manifest.semantic_catalog_hash != catalog_hash:
+        raise PromotionError("SPEC_RECONCILE_CATALOG_HASH_MISMATCH", dataset_id)
+    if contract.language_registry_hash != registry.registry_hash or manifest.language_registry_hash != registry.registry_hash:
+        raise PromotionError("SPEC_RECONCILE_LANGUAGE_HASH_MISMATCH", dataset_id)
+    if tuple(sorted(contract.active_semantic_types)) != catalog_types:
+        raise PromotionError("SPEC_RECONCILE_CATALOG_TYPE_MISMATCH", dataset_id)
+    if tuple(sorted(manifest.promoted_semantic_types)) != catalog_types:
+        raise PromotionError("SPEC_RECONCILE_TYPE_SET_MISMATCH", dataset_id)
+
+    spec_hash = spec.logical_hash()
+
+    contract_payload = contract.model_dump(mode="json")
+    planner = dict(contract_payload.get("production_planner_policy") or {})
+    planner["allowed_splits"] = list(spec.allowed_splits)
+    contract_payload["dataset_spec_hash"] = spec_hash
+    contract_payload["production_planner_policy"] = planner
+    contract_payload["promotion_fingerprint"] = ""
+    new_contract = ProductionContract.model_validate(contract_payload)
+    new_contract = new_contract.model_copy(
+        update={"promotion_fingerprint": new_contract.fingerprint()}
+    )
+
+    manifest_payload = manifest.model_dump(mode="json")
+    manifest_payload["dataset_spec_hash"] = spec_hash
+    manifest_payload["allowed_splits"] = list(spec.allowed_splits)
+    manifest_payload["production_contract_hash"] = new_contract.fingerprint()
+    manifest_payload["promotion_fingerprint"] = ""
+    new_manifest = PromotionManifest.model_validate(manifest_payload)
+    new_manifest = new_manifest.model_copy(
+        update={"promotion_fingerprint": new_manifest.fingerprint()}
+    )
+
+    old_contract_payload = contract.model_dump(mode="json")
+    new_contract_payload = new_contract.model_dump(mode="json")
+    contract_changed = tuple(
+        sorted(k for k in new_contract_payload if old_contract_payload.get(k) != new_contract_payload.get(k))
+    )
+    if not set(contract_changed) <= _SPEC_REBIND_CONTRACT_ALLOWED:
+        raise PromotionError(
+            "SPEC_RECONCILE_DISALLOWED_CONTRACT_CHANGES", ",".join(contract_changed)
+        )
+
+    old_manifest_payload = manifest.model_dump(mode="json")
+    new_manifest_payload = new_manifest.model_dump(mode="json")
+    manifest_changed = tuple(
+        sorted(k for k in new_manifest_payload if old_manifest_payload.get(k) != new_manifest_payload.get(k))
+    )
+    if not set(manifest_changed) <= _SPEC_REBIND_MANIFEST_ALLOWED:
+        raise PromotionError(
+            "SPEC_RECONCILE_DISALLOWED_MANIFEST_CHANGES", ",".join(manifest_changed)
+        )
+
+    return {
+        "dataset_id": dataset_id,
+        "paths": paths,
+        "dataset_spec_hash_before": contract.dataset_spec_hash,
+        "dataset_spec_hash_after": spec_hash,
+        "contract_changed_fields": contract_changed,
+        "manifest_changed_fields": manifest_changed,
+        "preserved": {
+            "semantic_catalog_hash": catalog_hash,
+            "language_registry_hash": registry.registry_hash,
+            "active_semantic_types": list(contract.active_semantic_types),
+            "promotion_evidence": contract.promotion_evidence,
+            "promotion_evidence_manifest": manifest.promotion_evidence,
+        },
+        "old_contract": old_contract_payload,
+        "old_manifest": old_manifest_payload,
+        "new_contract": new_contract,
+        "new_manifest": new_manifest,
+    }
+
+
+def apply_dataset_spec_reconciliation(
+    plan: dict[str, Any],
+    *,
+    resource_root: Path = RESOURCE_ROOT,
+    replace_fn: Callable[[str, str], Any] = _default_atomic_replace,
+    validation_hook: Callable[[], None] | None = None,
+) -> dict[str, Any]:
+    """Atomically write a prepared spec-reconciliation plan with rollback."""
+    dataset_id = plan["dataset_id"]
+    paths: dict[str, Path] = plan["paths"]
+    contract_path = paths["production_contract"]
+    manifest_path = paths["promotion_manifest"]
+
+    for dest in (contract_path, manifest_path):
+        try:
+            dest.resolve().relative_to(resource_root.resolve())
+        except ValueError:
+            raise PromotionError("SPEC_RECONCILE_DESTINATION_OUTSIDE_ROOT", str(dest))
+
+    current_contract = _read_json(contract_path)
+    current_manifest = _read_json(manifest_path)
+    if current_contract != plan["old_contract"] or current_manifest != plan["old_manifest"]:
+        raise PromotionError("SPEC_RECONCILE_BUNDLE_STALE", dataset_id)
+
+    new_contract = plan["new_contract"]
+    new_manifest = plan["new_manifest"]
+
+    backups: dict[Path, bytes] = {}
+    for dest in (contract_path, manifest_path):
+        if dest.exists():
+            backups[dest] = dest.read_bytes()
+
+    txn = uuid.uuid4().hex
+    temps = {dest: dest.parent / f".{dest.name}.{txn}.tmp" for dest in (contract_path, manifest_path)}
+    try:
+        _write_canonical_json(temps[contract_path], new_contract.model_dump(mode="json"))
+        _write_canonical_json(temps[manifest_path], new_manifest.model_dump(mode="json"))
+        replace_fn(str(temps[contract_path]), str(contract_path))
+        replace_fn(str(temps[manifest_path]), str(manifest_path))
+
+        if validation_hook is not None:
+            validation_hook()
+
+        reloaded_contract = ProductionContract.model_validate(_read_json(contract_path))
+        reloaded_manifest = PromotionManifest.model_validate(_read_json(manifest_path))
+        reloaded_spec = DatasetSpec.model_validate(_read_json(paths["dataset_spec"]))
+        reloaded_catalog = load_semantic_catalog(paths["semantic_catalog"])
+        reloaded_registry = load_language_registry(resource_root / "language" / "production_registry.json")
+
+        if reloaded_contract.dataset_spec_hash != reloaded_spec.logical_hash():
+            raise PromotionError("SPEC_RECONCILE_FINAL_VALIDATION_FAILED", "contract spec hash")
+        if reloaded_manifest.dataset_spec_hash != reloaded_spec.logical_hash():
+            raise PromotionError("SPEC_RECONCILE_FINAL_VALIDATION_FAILED", "manifest spec hash")
+        if reloaded_contract.semantic_catalog_hash != reloaded_catalog.logical_hash():
+            raise PromotionError("SPEC_RECONCILE_FINAL_VALIDATION_FAILED", "contract catalog hash")
+        if reloaded_manifest.semantic_catalog_hash != reloaded_catalog.logical_hash():
+            raise PromotionError("SPEC_RECONCILE_FINAL_VALIDATION_FAILED", "manifest catalog hash")
+        if reloaded_contract.language_registry_hash != reloaded_registry.registry_hash:
+            raise PromotionError("SPEC_RECONCILE_FINAL_VALIDATION_FAILED", "contract registry hash")
+        if reloaded_manifest.language_registry_hash != reloaded_registry.registry_hash:
+            raise PromotionError("SPEC_RECONCILE_FINAL_VALIDATION_FAILED", "manifest registry hash")
+        if reloaded_manifest.production_contract_hash != reloaded_contract.fingerprint():
+            raise PromotionError("SPEC_RECONCILE_FINAL_VALIDATION_FAILED", "manifest contract hash")
+        if reloaded_contract.promotion_fingerprint != reloaded_contract.fingerprint():
+            raise PromotionError("SPEC_RECONCILE_FINAL_VALIDATION_FAILED", "contract fingerprint")
+        if reloaded_manifest.promotion_fingerprint != reloaded_manifest.fingerprint():
+            raise PromotionError("SPEC_RECONCILE_FINAL_VALIDATION_FAILED", "manifest fingerprint")
+    except Exception as exc:
+        try:
+            for dest, data in backups.items():
+                dest.write_bytes(data)
+            for temp in temps.values():
+                if temp.exists():
+                    temp.unlink()
+        except Exception as rb_exc:
+            raise PromotionError("SPEC_RECONCILE_ROLLBACK_FAILED", str(rb_exc)) from rb_exc
+        raise PromotionError("SPEC_RECONCILE_TRANSACTION_FAILED_ROLLED_BACK", str(exc)) from exc
+
+    return {
+        "status": "DATASET_SPEC_HASH_RECONCILED",
+        "dataset_id": dataset_id,
+        "dataset_spec_hash_before": plan["dataset_spec_hash_before"],
+        "dataset_spec_hash_after": plan["dataset_spec_hash_after"],
+        "contract_changed_fields": list(plan["contract_changed_fields"]),
+        "manifest_changed_fields": list(plan["manifest_changed_fields"]),
+        "preserved": plan["preserved"],
+    }
+
+
+def reconcile_dataset_spec_hash(
+    dataset_id: str,
+    *,
+    resource_root: Path = RESOURCE_ROOT,
+    replace_fn: Callable[[str, str], Any] = _default_atomic_replace,
+    validation_hook: Callable[[], None] | None = None,
+    write: bool = True,
+) -> dict[str, Any]:
+    """Plan and (optionally) apply a governed DatasetSpec-hash rebind."""
+    plan = plan_dataset_spec_reconciliation(dataset_id, resource_root=resource_root)
+    if not write:
+        return {
+            "dataset_id": dataset_id,
+            "status": "PLANNED",
+            "dataset_spec_hash_before": plan["dataset_spec_hash_before"],
+            "dataset_spec_hash_after": plan["dataset_spec_hash_after"],
+            "contract_changed_fields": list(plan["contract_changed_fields"]),
+            "manifest_changed_fields": list(plan["manifest_changed_fields"]),
+            "preserved": plan["preserved"],
+        }
+    return apply_dataset_spec_reconciliation(
+        plan,
+        resource_root=resource_root,
+        replace_fn=replace_fn,
+        validation_hook=validation_hook,
+    )

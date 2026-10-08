@@ -10,12 +10,15 @@
   },
   "comparator_registry_hash": "a7d0a24024c880ecfb6ba5a28d5ced805731603869a8b29536aea67980f17cf0",
   "dataset_id": "vimedcss",
-  "dataset_spec_hash": "fa0d6395cb59c79ab8a166dcf3d35e506158724e884e2d7a9cb49a48e7a2a4dc",
+  "dataset_spec_hash": "6a5658e307dc9bb3a7caac6c1f86b8126d3cf1a26252bf87d728dd1daf7101e7",
   "language_registry_hash": "b35320756d541f925a16d4cd0758e86104a9d63c4f172b0e70e6bfdddb3680a1",
   "migration_source": "authoring_promotion_bridge",
   "production_planner_policy": {
     "allowed_splits": [
-      "train"
+      "train",
+      "validation",
+      "test",
+      "hard"
     ],
     "plan_location": "data/materialized/vimedcss/current"
   },
@@ -24,7 +27,7 @@
     "bundle_fingerprint": "f6adc478bf2207e08a98e1df8947d05b7cbf67b533fcd41abcde67f1b3bf10ee",
     "promotion_mode": "replace"
   },
-  "promotion_fingerprint": "5c3abd555e9f201391e9a9b13f83db3b5559688d8b5b1ac5c1a28749f52177ab",
+  "promotion_fingerprint": "fb1e075a7a7c46a143c22088024dfc323481153e53bd0e94cb29361138259745",
   "schema_version": 1,
   "semantic_catalog_hash": "1fbe51af31f11f9b136bf74fbf84ac17ae74a68c45ce3e6c4caaaff102c56fc0",
   "status": "PROMOTED"
