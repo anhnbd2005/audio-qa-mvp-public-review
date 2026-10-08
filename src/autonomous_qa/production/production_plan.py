@@ -1,8 +1,13 @@
 """ProductionPlan Schema Version 1 & FrozenInstanceManifest.
 
-The ProductionPlan is the ONLY layer allowed to decide target counts, positive/negative
-ratios, per-anchor caps, sampling strategies, and seeds.
-It resolves valid instances from the SemanticContract truth space without redefining gold.
+RETENTION NOTE (R3): this is a *certification-path* schema used by
+``certification.core_invariants`` and ``certification.semantic_fidelity_audit``.
+It is NOT the active production planner. The active production budget authority is
+``production.source_preparation`` (SourceInventory -> EarlyBudget ->
+ApprovedAllocation) feeding ``production_qa.build_generation_plan``.
+
+This schema resolves valid instances from the SemanticContract truth space
+without redefining gold; it does not declare the production budget target.
 """
 
 from __future__ import annotations
