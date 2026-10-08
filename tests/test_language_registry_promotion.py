@@ -9,10 +9,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 
 import pytest
 
+from src.autonomous_qa.certification.authoring_promotion import prepare_promotion
 from src.autonomous_qa.certification.language_registry_promotion import (
     LanguageRegistryPromotionBundle,
     LanguageRegistryPromotionError,
@@ -31,14 +33,19 @@ from src.autonomous_qa.compiler.semantic_field_specs import (
 from src.autonomous_qa.language import language_preflight as preflight
 from src.autonomous_qa.language.candidate_registry import (
     CandidateRegistryError,
+    build_candidate_language_registry,
     build_candidate_registry_from_paths,
+    certify_candidate_registry,
+    load_candidate_capability_resource,
     validate_candidate_capability_resource,
+    write_registry_deterministically,
 )
 from src.autonomous_qa.language.language_preflight import AcceptedLanguageType, run_preflight
 from src.autonomous_qa.language.language_quality import (
     ProductionLanguageRegistry,
     check_runtime_coverage,
     compatible_registry_entries,
+    load_language_registry,
 )
 from src.autonomous_qa.language.template_renderer import canonical_hash
 from src.common.config import ROOT
@@ -827,3 +834,181 @@ def test_apply_rejects_non_ready_bundle(tmp_path: Path):
 def test_root_canonical_resources_untouched():
     for path, before in _REAL_BEFORE.items():
         assert path.read_bytes() == before
+
+
+# ---------------------------------------------------------------------------
+# Post-promotion idempotency
+# ---------------------------------------------------------------------------
+
+
+def _toy_caps():
+    return validate_candidate_capability_resource(
+        _toy_capability_resource(), expected_language="vi"
+    )
+
+
+def _certified_registry_with_toy_capability() -> ProductionLanguageRegistry:
+    base = _registry([])
+    candidate = build_candidate_language_registry(base, _toy_caps(), capability_language="vi")
+    return certify_candidate_registry(candidate, certification_hash="deadbeef")
+
+
+def test_candidate_builder_adds_missing_capability():
+    base = _registry([])
+    candidate = build_candidate_language_registry(base, _toy_caps(), capability_language="vi")
+    ids = {e.language_entry_id for e in candidate.entries}
+    assert ids == {"cap_toy_dir_cat_utt"}
+    assert candidate.registry_hash != base.registry_hash
+    assert candidate.version == "toy_base_v1+phase4_2_candidate"
+
+
+def test_candidate_builder_equivalent_certified_capability_is_idempotent():
+    certified = _certified_registry_with_toy_capability()
+    again = build_candidate_language_registry(certified, _toy_caps(), capability_language="vi")
+    assert again.model_dump(mode="json") == certified.model_dump(mode="json")
+    assert again.registry_hash == certified.registry_hash
+
+
+def test_candidate_builder_conflicting_existing_id_fails():
+    certified = _certified_registry_with_toy_capability()
+    conflicting = _toy_caps()
+    conflicting[0]["pattern"] = "[ATTRIBUTE_PHRASE] trong đoạn âm thanh là gì?"
+    with pytest.raises(CandidateRegistryError) as exc:
+        build_candidate_language_registry(certified, conflicting, capability_language="vi")
+    assert exc.value.code == "LANGUAGE_CAPABILITY_ID_CONFLICT"
+
+
+def test_candidate_builder_same_semantics_wrong_provenance_fails():
+    base = _registry([])
+    uncertified = build_candidate_language_registry(base, _toy_caps(), capability_language="vi")
+    # uncertified base still carries a CANDIDATE entry with identical semantics
+    with pytest.raises(CandidateRegistryError) as exc:
+        build_candidate_language_registry(uncertified, _toy_caps(), capability_language="vi")
+    assert exc.value.code == "LANGUAGE_CAPABILITY_PROVENANCE_INVALID"
+
+
+def test_candidate_builder_does_not_duplicate_version_suffix():
+    suffixed = _registry([], version="toy_base_v1+phase4_2_candidate")
+    caps = _toy_caps()
+    caps.append(
+        {
+            "capability_id": "cap_toy_extra",
+            "operator": "DIRECT",
+            "semantic_class": "categorical_attribute",
+            "answer_kind": "field_value",
+            "pattern": "[ATTRIBUTE_PHRASE] của đoạn âm thanh là bao nhiêu?",
+            "required_slots": ["[ATTRIBUTE_PHRASE]"],
+            "optional_slots": [],
+            "unit_policy": "any",
+            "match_policy": ["exact"],
+            "entity_scopes": ["utterance"],
+            "entity_reference_owner": "literal",
+        }
+    )
+    candidate = build_candidate_language_registry(suffixed, caps, capability_language="vi")
+    assert candidate.version.count("+phase4_2_candidate") == 1
+
+
+def test_all_capabilities_installed_returns_base_registry_byte_equivalent():
+    certified = _certified_registry_with_toy_capability()
+    again = build_candidate_language_registry(certified, _toy_caps(), capability_language="vi")
+    assert again is certified or again.model_dump(mode="json") == certified.model_dump(mode="json")
+    assert again.registry_hash == certified.registry_hash
+
+
+def _tree_with_registry(tmp: Path, base: ProductionLanguageRegistry, dataset_ids: list[str]) -> dict:
+    res = tmp / "resources"
+    (res / "language").mkdir(parents=True)
+    (res / "production").mkdir(parents=True)
+    _write_json(res / "language" / "production_registry.json", base.model_dump(mode="json"))
+    _write_json(res / "language" / "candidate_capabilities.json", _toy_capability_resource())
+    for ds in dataset_ids:
+        contract = _contract(ds, base.registry_hash)
+        _write_json(res / "production" / f"{ds}.json", contract.model_dump(mode="json"))
+        _write_json(
+            res / "production" / f"{ds}.promotion.json",
+            _manifest(ds, base.registry_hash, contract).model_dump(mode="json"),
+        )
+    return {"resource_root": res, "base": base}
+
+
+def test_language_promotion_prepare_already_installed_does_not_duplicate(tmp_path: Path):
+    certified = _certified_registry_with_toy_capability()
+    tree = _tree_with_registry(tmp_path, certified, ["toy_a"])
+    res = tree["resource_root"]
+    bundle = prepare_language_registry_promotion(
+        resource_root=res,
+        candidate_capabilities_path=res / "language" / "candidate_capabilities.json",
+        scratch_root=tmp_path / "scratch",
+        fresh_accepted_types=[_toy_accepted()],
+        fresh_dataset_label="toy_fresh",
+        expected_candidate_hash=None,
+        dataset_accepted_resolver=lambda ds: [_toy_accepted()],
+    )
+    assert bundle.prepare_status == "ALREADY_PROMOTED"
+    assert bundle.added_entry_ids == ()
+    assert bundle.modified_entry_ids == ()
+    assert bundle.removed_entry_ids == ()
+    assert bundle.base_registry_hash == bundle.promoted_registry_hash
+    assert bundle.apply_ready is False
+
+
+def test_authoring_prepare_post_language_promotion_no_registry_change_required(tmp_path: Path):
+    """Critical handoff proof: fresh V2 3-task PREPARE against post-APPLY registry."""
+    run_dir = ROOT / "outputs" / "runs" / "vimedcss" / "20261007_vimedcss_v2_authoring"
+
+    # 1. Compute the promoted registry dynamically (no hardcoded hash).
+    pre = prepare_promotion(
+        "vimedcss",
+        run_dir,
+        promotion_mode="replace",
+        output_root=tmp_path / "pre",
+        resource_root=RESOURCE_ROOT,
+        language_capability_root=tmp_path / "precap",
+    )
+    fresh = list(pre.candidate_language_preflight["accepted_types"])
+    promotion = prepare_language_registry_promotion(
+        resource_root=RESOURCE_ROOT,
+        scratch_root=tmp_path / "lrp",
+        fresh_accepted_types=fresh,
+        fresh_dataset_label="vimedcss",
+    )
+    assert promotion.apply_ready is True
+
+    # 2. Synthetic post-APPLY resource_root: real resources + promoted registry.
+    scratch_res = tmp_path / "resources"
+    shutil.copytree(
+        RESOURCE_ROOT,
+        scratch_res,
+        dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns("frozen"),
+    )
+    write_registry_deterministically(
+        ProductionLanguageRegistry.model_validate(promotion.promoted_registry),
+        scratch_res / "language" / "production_registry.json",
+    )
+
+    # 3. Fresh ViMedCSS PREPARE against the post-language-promotion state.
+    bundle = prepare_promotion(
+        "vimedcss",
+        run_dir,
+        promotion_mode="replace",
+        output_root=tmp_path / "post",
+        resource_root=scratch_res,
+        language_capability_root=tmp_path / "postcap",
+    )
+    assert bundle.canonical_language_registry_hash == bundle.candidate_language_registry_hash
+    assert bundle.language_registry_change_required is False
+    assert bundle.candidate_language_preflight["status"] == "PREFLIGHT_PASS"
+    assert bundle.candidate_language_preflight["blocking_issues"] == 0
+    assert bundle.staged_language_preflight["status"] == "PREFLIGHT_PASS"
+    assert bundle.staged_language_preflight["blocking_issues"] == 0
+    assert set(bundle.selected_promotion_types) == {
+        "vimedcss_topic_classification",
+        "vimedcss_cs_terms_count",
+        "vimedcss_pairwise_topic_same",
+    }
+    assert (
+        bundle.non_selected_types["vimedcss_003_cs_term_presence"]
+        == "OPERATOR_CAPABILITY_GAP:MEMBERSHIP"
+    )

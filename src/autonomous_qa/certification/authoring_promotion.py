@@ -1142,13 +1142,22 @@ def prepare_promotion(
         field_specs_source = "explicit"
         field_specs_hash = explicit_bundle.logical_hash()
 
+    # Canonical staged preflight MUST use the resource_root registry, never the
+    # global ROOT registry, so isolated/post-apply states are hermetic.
+    canonical_registry = load_language_registry_from_root(resource_root)
+    canonical_registry_path = resource_root / "language" / "production_registry.json"
+
     staged_preflight_res = run_staged_preflight_for_promotion(
-        dataset_id, candidate_catalog, field_specs=field_specs, run_dir=run_dir
+        dataset_id,
+        candidate_catalog,
+        field_specs=field_specs,
+        run_dir=run_dir,
+        registry=canonical_registry,
+        registry_path=canonical_registry_path,
     )
     staged_pass = (staged_preflight_res["status"] == "PREFLIGHT_PASS")
 
     # --- Phase 4.2: candidate language registry (SCRATCH ONLY) --------------
-    canonical_registry = load_language_registry_from_root(resource_root)
     capability_resource = load_candidate_capability_resource(candidate_capabilities_path)
     capability_entries = validate_candidate_capability_resource(
         capability_resource, expected_language=canonical_registry.language

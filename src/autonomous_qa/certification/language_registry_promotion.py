@@ -452,6 +452,13 @@ def prepare_language_registry_promotion(
         k for k in set(_entry_dump(base)) & set(_entry_dump(candidate))
         if _entry_dump(base)[k] != _entry_dump(candidate)[k]
     )
+    # Every requested capability is already installed and certified: no work.
+    already_installed = (
+        candidate.registry_hash == base.registry_hash
+        and not added
+        and not removed
+        and not modified
+    )
 
     scratch_root.mkdir(parents=True, exist_ok=True)
     candidate_path = scratch_root / "candidate_production_language_registry.json"
@@ -474,7 +481,13 @@ def prepare_language_registry_promotion(
 
     # -- checks run against the candidate (pre-certification) ----------------
     failures: list[str] = []
-    if expected_candidate_hash is not None and candidate.registry_hash != expected_candidate_hash:
+    if (
+        expected_candidate_hash is not None
+        and candidate.registry_hash != expected_candidate_hash
+        and not already_installed
+    ):
+        # The expected first-install candidate hash does not apply once every
+        # capability is already certified canonically.
         failures.append("CANDIDATE_HASH_MISMATCH")
     if not deterministic_compilation:
         failures.append("NONDETERMINISTIC_COMPILATION")
@@ -584,7 +597,10 @@ def prepare_language_registry_promotion(
         natural_render_evidence=natural_render,
     )
     certified = not failures
-    if certified:
+    if already_installed:
+        # No re-certification: keep the canonical base as the target registry.
+        promoted = base
+    elif certified:
         certification_hash = preliminary.logical_hash()
         promoted = certify_candidate_registry(
             candidate, certification_hash=certification_hash
@@ -780,7 +796,11 @@ def prepare_language_registry_promotion(
         1 for f in findings if f.kind == "manifest" and f.classification != "INVALID_RESOURCE"
     )
     apply_ready = bool(
-        certified and no_invalid and all_contracts_planned and all_manifests_planned
+        certified
+        and no_invalid
+        and all_contracts_planned
+        and all_manifests_planned
+        and not already_installed
     )
 
     bundle = LanguageRegistryPromotionBundle(
@@ -798,7 +818,7 @@ def prepare_language_registry_promotion(
         contract_rebind_plan=tuple(contract_plan),
         manifest_rebind_plan=tuple(manifest_plan),
         expected_current_hashes=expected,
-        prepare_status="PREPARED",
+        prepare_status="ALREADY_PROMOTED" if already_installed else "PREPARED",
         apply_ready=apply_ready,
     )
 

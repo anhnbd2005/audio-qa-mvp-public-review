@@ -179,6 +179,56 @@ def load_candidate_capability_resource(
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
+def _capability_semantic_payload(capability: dict[str, Any]) -> dict[str, Any]:
+    """Normalized semantic/capability-bearing fields for one capability.
+
+    Excludes promotion provenance (source_kind / certification_status /
+    certification_hash) — those are not part of the semantic capability.
+    """
+    contract_payload = {
+        "operator": capability["operator"],
+        "semantic_class": capability["semantic_class"],
+        "answer_kind": capability["answer_kind"],
+        "pattern": capability["pattern"],
+        "required_slots": list(capability.get("required_slots", [])),
+        "optional_slots": list(capability.get("optional_slots", [])),
+        "match_policy": list(capability.get("match_policy", ["exact"])),
+        "unit_policy": capability.get("unit_policy", "any"),
+        "entity_scopes": list(capability.get("entity_scopes", [])),
+        "entity_reference_owner": capability.get("entity_reference_owner"),
+    }
+    return {
+        **contract_payload,
+        "semantic_contract_hash": canonical_hash(contract_payload),
+    }
+
+
+def capability_equivalent_to_registry_entry(
+    capability: dict[str, Any],
+    existing_entry: LanguageRegistryEntry,
+    base: ProductionLanguageRegistry | None = None,
+) -> bool:
+    """True when the capability's SEMANTIC identity equals an installed entry.
+
+    Compares every capability-bearing field and the semantic_contract_hash.
+    Never infers equivalence from the ID alone; promotion provenance is ignored.
+    """
+    payload = _capability_semantic_payload(capability)
+    return (
+        existing_entry.operator == payload["operator"]
+        and existing_entry.semantic_class == payload["semantic_class"]
+        and existing_entry.pattern == payload["pattern"]
+        and existing_entry.answer_kind == payload["answer_kind"]
+        and list(existing_entry.required_slots) == payload["required_slots"]
+        and list(existing_entry.optional_slots) == payload["optional_slots"]
+        and existing_entry.unit_policy == payload["unit_policy"]
+        and list(existing_entry.match_policy) == payload["match_policy"]
+        and list(existing_entry.entity_scopes or []) == payload["entity_scopes"]
+        and existing_entry.entity_reference_owner == payload["entity_reference_owner"]
+        and existing_entry.semantic_contract_hash == payload["semantic_contract_hash"]
+    )
+
+
 def _entry_from_capability(
     capability: dict[str, Any], base: ProductionLanguageRegistry
 ) -> LanguageRegistryEntry:
@@ -219,29 +269,69 @@ def _entry_from_capability(
     )
 
 
+def _candidate_version(base_version: str) -> str:
+    """Apply the candidate suffix exactly once (idempotent)."""
+    if base_version.endswith(CANDIDATE_VERSION_SUFFIX):
+        return base_version
+    return base_version + CANDIDATE_VERSION_SUFFIX
+
+
 def build_candidate_language_registry(
     base: ProductionLanguageRegistry,
     capabilities: list[dict[str, Any]],
     *,
     capability_language: str | None = None,
 ) -> ProductionLanguageRegistry:
-    """Return a deterministic candidate registry = base + generic capabilities."""
+    """Return a deterministic candidate registry = base + generic capabilities.
+
+    Idempotent merge policy:
+      * ID absent            -> add the CANDIDATE capability.
+      * ID present, equivalent AND certified -> ALREADY_INSTALLED no-op.
+      * ID present, semantically different   -> LANGUAGE_CAPABILITY_ID_CONFLICT.
+      * ID present, equivalent but non-canonical provenance
+        -> LANGUAGE_CAPABILITY_PROVENANCE_INVALID (fail closed).
+
+    If every requested capability is already installed and certified, the base
+    registry is returned unchanged (byte-equivalent, no hash churn, no repeated
+    version suffix).
+    """
     if capability_language is not None and capability_language != base.language:
         raise CandidateRegistryError(
             "LANGUAGE_CAPABILITY_LANGUAGE_MISMATCH",
             f"{capability_language}!={base.language}",
         )
-    existing_ids = {entry.language_entry_id for entry in base.entries}
+    by_id = {entry.language_entry_id: entry for entry in base.entries}
     new_entries: list[LanguageRegistryEntry] = []
     seen: set[str] = set()
     for capability in capabilities:
         entry_id = capability.get("capability_id")
         if not entry_id:
             raise CandidateRegistryError("CANDIDATE_CAPABILITY_ID_MISSING", str(capability))
-        if entry_id in existing_ids or entry_id in seen:
+        if entry_id in seen:
             raise CandidateRegistryError("DUPLICATE_LANGUAGE_ENTRY_ID", entry_id)
         seen.add(entry_id)
-        new_entries.append(_entry_from_capability(capability, base))
+
+        existing = by_id.get(entry_id)
+        if existing is None:
+            new_entries.append(_entry_from_capability(capability, base))
+            continue
+
+        # ID already present: require semantic equivalence, never ID-only trust.
+        if not capability_equivalent_to_registry_entry(capability, existing, base):
+            raise CandidateRegistryError("LANGUAGE_CAPABILITY_ID_CONFLICT", entry_id)
+        if not (
+            existing.source_kind == "CERTIFIED_CAPABILITY"
+            and existing.certification_status == "CERTIFIED"
+        ):
+            raise CandidateRegistryError(
+                "LANGUAGE_CAPABILITY_PROVENANCE_INVALID",
+                f"{entry_id}:{existing.source_kind}:{existing.certification_status}",
+            )
+        # equivalent + certified -> already installed, no duplicate added
+
+    if not new_entries:
+        # Nothing to add: return the base registry unchanged.
+        return base
 
     merged = sorted(
         list(base.entries) + new_entries,
@@ -249,7 +339,7 @@ def build_candidate_language_registry(
     )
     candidate = ProductionLanguageRegistry(
         language=base.language,
-        version=base.version + CANDIDATE_VERSION_SUFFIX,
+        version=_candidate_version(base.version),
         schema_version=base.schema_version,
         template_library_version=base.template_library_version,
         template_library_hash=base.template_library_hash,
